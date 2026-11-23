@@ -272,7 +272,7 @@ function selDay(s){S.wo=0;S.sel=s;$('#rd').value=s;$('#rd2').value=s;drawCal();$
 function viewReservar(){
   const now=iso(),t=now.slice(0,10),lim=addD(t,MAXD);if(!S.sel||!okDay(S.sel))S.sel=firstOk();
   $('#view').innerHTML=`<div class="card"><div id="cal"></div></div>
-  <div class="card"><h2 style="margin-top:0">Próximas reservas</h2>${agenda()}</div>
+  <div class="card"><h2 style="margin-top:0">Próximas reservas</h2><div id="agl">${agenda()}</div></div>
   <div class="card" id="nuevo"><h2 style="margin-top:0">Nueva reserva</h2><small style="color:var(--m)">De lunes a viernes laborables, hasta ${MAXD} días vista (hasta el ${dm(lim)}). Empezar entre 8:00 y 17:30; devolver como tarde a las 20:00.</small>
   <label>Vehículo</label>${vehBtns()}<label>Empleado</label>${nameSel()}
   <div class="row"><div><label>Día de inicio</label><input type="date" id="rd" value="${S.sel}" min="${t}" max="${lim}" onchange="if($('#rd2').value<this.value)$('#rd2').value=this.value"></div><div><label>Hora de inicio</label><input type="time" id="rs" min="08:00" max="17:30" value="${S.sel===t&&now.slice(11)>H0?now.slice(11):'09:00'}"></div></div>
@@ -500,6 +500,9 @@ async function go(t){
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{location.hash===('#'+b.dataset.t)?go(b.dataset.t):location.hash=b.dataset.t});
 addEventListener('hashchange',()=>go(location.hash.slice(1)));
-setInterval(()=>{if(!document.hidden&&!S.busy&&!$('#dlg').open)load(true).then(renderStatus).catch(()=>{})},60000);
+/* Cada 60 s (con la pantalla visible): se actualizan las tarjetas, el calendario y la lista de próximas reservas, sin borrar lo que se esté escribiendo */
+const tick=()=>{if(!document.hidden&&!S.busy&&!$('#dlg').open)load(true).then(()=>{renderStatus();if(S.tab==='reservar'&&$('#agl')){drawCal();$('#agl').innerHTML=agenda()}}).catch(()=>{})};
+setInterval(tick,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});   /* al volver a la app, se actualiza al momento */
 go(location.hash.slice(1));
 </script></body></html>
