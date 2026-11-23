@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Llaves de vehículos</title>
+<style>
+:root{--bg:#eef1f4;--c:#fff;--t:#16212c;--m:#66737f;--b:#d9e0e6;--ok:#15803d;--okb:#dcf5e4;--ko:#c62828;--kob:#fde4e4;--p:#1d4ed8;--r:16px}
+@media(prefers-color-scheme:dark){:root{--bg:#0e151c;--c:#17212b;--t:#eef2f6;--m:#92a0ad;--b:#2a3846;--ok:#4ade80;--okb:#12351f;--ko:#f87171;--kob:#431a1a;--p:#6b9bff}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--t);padding:env(safe-area-inset-top) 0 calc(80px + env(safe-area-inset-bottom))}
+main{max-width:640px;margin:0 auto;padding:12px}
+h1{font-size:1.3rem;margin:6px 4px 12px}h2{font-size:1.05rem;margin:18px 4px 8px}
+.card{background:var(--c);border:1px solid var(--b);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.st{display:flex;gap:12px;align-items:center;border-left:8px solid;border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.st.ok{background:var(--okb);border-color:var(--ok)}.st.ko{background:var(--kob);border-color:var(--ko)}
+.st b{font-size:1.05rem}.st small{display:block;color:var(--m)}.st .ic{font-size:1.8rem}
+label{display:block;font-weight:600;margin:12px 0 4px;font-size:.92rem}
+input,select,textarea{width:100%;font:inherit;padding:13px;border:1.5px solid var(--b);border-radius:12px;background:var(--bg);color:var(--t)}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+.seg{display:flex;gap:6px}.seg button{flex:1;padding:14px 4px;border:2px solid var(--b);background:var(--bg);color:var(--t);border-radius:12px;font:inherit;font-weight:600}
+.seg button.on{border-color:var(--p);background:var(--p);color:#fff}
+.btn{width:100%;margin-top:16px;padding:16px;border:0;border-radius:14px;background:var(--p);color:#fff;font:inherit;font-weight:700;font-size:1.05rem}
+.btn.g{background:var(--ok);color:#fff}.btn.r{background:var(--ko)}.btn.s{width:auto;margin:0;padding:8px 12px;font-size:.85rem;background:var(--kob);color:var(--ko)}
+.btn.o{background:transparent;color:var(--p);border:2px solid var(--p)}
+.msg{padding:12px;border-radius:12px;margin-top:12px;font-weight:600}.msg.e{background:var(--kob);color:var(--ko)}.msg.i{background:var(--okb);color:var(--ok)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--c);border-top:1px solid var(--b);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;padding:12px 4px;border:0;background:none;color:var(--m);font:inherit;font-size:.8rem;font-weight:600}nav button span{display:block;font-size:1.4rem}nav button.on{color:var(--p)}
+.it{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--b)}.it:last-child{border:0}.it small{color:var(--m);display:block}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.82rem;white-space:nowrap}th,td{padding:8px;border-bottom:1px solid var(--b);text-align:left}th{color:var(--m)}
+.th{width:44px;height:44px;object-fit:cover;border-radius:8px}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(90px + env(safe-area-inset-bottom));max-width:616px;margin:0 auto;background:var(--t);color:var(--bg);padding:14px;border-radius:12px;text-align:center;font-weight:600;display:none;z-index:9}
+</style></head><body>
+<main><h1>🔑 Llaves de vehículos</h1><div id="status"></div><div id="view"></div></main>
+<div id="toast"></div>
+<nav id="nav"><button data-t="reservar"><span>📅</span>Reservar</button><button data-t="llaves"><span>🔑</span>Llaves</button><button data-t="historial"><span>📋</span>Historial</button></nav>
+<script>
+/* ================= CONFIG ================= */
+/* Pega aquí la URL de tu Apps Script (termina en /exec). Vacío = modo demo con localStorage */
+const API_URL='https://script.google.com/macros/s/AKfycbyZknytxoKK6-QHONgMDJmmOXOoDeOmlMhWf_Q8TBzZqsGeKjhFfysgpabgNq_bPbG2kg/exec';
+const VEH={gasolina:{n:'Gasolina',i:'⛽'},diesel:{n:'Diésel',i:'🛢️'}};
+const FUEL=['Reserva','1/4','1/2','3/4','Lleno'];
+
+/* ============ CAPA DE SERVICIOS (único punto a cambiar para Supabase/Firebase) ============ */
+const LocalService=(()=>{
+  const K='llaves_v1';
+  const pad=n=>String(n).padStart(2,'0');
+  const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const at=(days,h)=>{const d=new Date();d.setDate(d.getDate()+days);d.setHours(h,0,0,0);return iso(d)};
+  const seed=()=>({names:['Ana','Luis','Marta','Carlos'],
+    reservations:[{id:'r1',veh:'diesel',name:'Ana',start:at(1,9),end:at(1,13)},{id:'r2',veh:'gasolina',name:'Luis',start:at(2,16),end:at(2,19)}],
+    logs:[{id:'l1',veh:'gasolina',name:'Marta',out:at(-1,9),kmStart:41200,end:at(-1,13),kmEnd:41262,km:62,fuel:'1/2',notes:'Rozadura leve en el parachoques trasero',photo:''},
+          {id:'l2',veh:'diesel',name:'Carlos',out:at(-1,15),kmStart:88010,end:at(-1,17),kmEnd:88044,km:34,fuel:'3/4',notes:'',photo:''}]});
+  let db;try{db=JSON.parse(localStorage.getItem(K))}catch(e){}
+  db=db||seed();
+  const save=()=>{try{localStorage.setItem(K,JSON.stringify(db))}catch(e){alert('Almacenamiento lleno: exporta el CSV y borra datos antiguos.')}};
+  return{
+    iso,
+    async getAll(t){return db[t].slice()},
+    async add(t,r){r.id=Math.random().toString(36).slice(2,10);db[t].push(r);save();return r},
+    async update(t,id,p){Object.assign(db[t].find(x=>x.id==id),p);save()},
+    async remove(t,id){db[t]=db[t].filter(x=>x.id!=id);save()},
+    async getNames(){return db.names.slice()},
+    async setNames(n){db.names=n;save()},
+    async uploadPhoto(dataUrl){return dataUrl},          // Supabase: subir a Storage y devolver la URL pública
+    async reset(){db=seed();save()},
+    subscribe(cb){addEventListener('storage',cb)}         // Supabase: canal Realtime
+  };
+})();
+
+/* ====== GOOGLE SHEETS (vía Apps Script) ====== */
+const SheetsService=(()=>{
+  const call=async(url,opt)=>{const r=await fetch(url,opt);const j=await r.json();if(j&&j.error)throw new Error(j.error);return j};
+  const post=q=>call(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(q)});
+  return{
+    iso:LocalService.iso,
+    getAll:t=>call(`${API_URL}?t=${t}`),
+    add:(t,r)=>post({a:'add',t,r}),
+    update:(t,id,p)=>post({a:'update',t,id,p}),
+    remove:(t,id)=>post({a:'remove',t,id}),
+    getNames:async()=>(await call(`${API_URL}?t=names`)).map(x=>x.name),
+    setNames:n=>post({a:'setNames',names:n}),
+    uploadPhoto:async d=>(await post({a:'photo',data:d})).url,
+    reset:async()=>alert('Para borrar datos, elimina las filas directamente en Google Sheets.'),
+    subscribe:()=>{}
+  };
+})();
+const Service=API_URL?SheetsService:LocalService;
+addEventListener('unhandledrejection',e=>toast('⚠️ Error de conexión con Google Sheets: '+(e.reason&&e.reason.message||'inténtalo de nuevo')));
+
+/* ================= UI ================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=d=>new Date(d).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+const hm=d=>new Date(d).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+const nowISO=()=>Service.iso(new Date());
+const S={tab:'llaves',veh:'gasolina',fuel:'1/2',photo:''};
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3000)}
+function msg(id,t,type='e'){$(id).innerHTML=`<div class="msg ${type==='e'?'e':'i'}">${t}</div>`}
+const vehBtns=(fn)=>`<div class="seg">${Object.entries(VEH).map(([k,v])=>`<button type="button" data-v="${k}" class="${S.veh===k?'on':''}" onclick="pick('${k}',${fn})">${v.i} ${v.n}</button>`).join('')}</div>`;
+function pick(v,fn){S.veh=v;document.querySelectorAll('.seg button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(fn)fn()}
+const nameSel=(names,sel)=>`<select id="nm" onchange="newName(this)">${names.map(n=>`<option ${n===sel?'selected':''}>${esc(n)}</option>`).join('')}<option value="__n">➕ Otro nombre…</option></select>`;
+async function newName(el){if(el.value!=='__n')return;const n=(prompt('Nombre del empleado:')||'').trim();if(!n){el.selectedIndex=0;return}
+  const names=await Service.getNames();if(!names.includes(n)){names.push(n);await Service.setNames(names)}
+  const o=new Option(n,n);el.add(o,el.options[el.options.length-1]);el.value=n}
+const openLog=(logs,v)=>logs.find(l=>l.veh===v&&!l.end);
+
+async function renderStatus(){
+  const [logs,res]=await Promise.all([Service.getAll('logs'),Service.getAll('reservations')]);const now=nowISO();
+  $('#status').innerHTML=Object.entries(VEH).map(([k,v])=>{
+    const l=openLog(logs,k);
+    if(l)return `<div class="st ko"><span class="ic">🔴</span><div><b>${v.n}: En uso por ${esc(l.name)}${l.eta?` hasta las ${hm(l.eta)}`:''}</b><small>Desde las ${hm(l.out)} · ${l.kmStart} km</small></div></div>`;
+    const nx=res.filter(r=>r.veh===k&&r.end>now).sort((a,b)=>a.start.localeCompare(b.start))[0];
+    return `<div class="st ok"><span class="ic">🟢</span><div><b>${v.n}: Disponible</b><small>${nx?`Próxima reserva: ${esc(nx.name)}, ${fmt(nx.start)}`:'Sin reservas próximas'}</small></div></div>`}).join('');
+}
+
+/* ---- Reservar ---- */
+async function viewReservar(){
+  const names=await Service.getNames();const now=nowISO();const d=now.slice(0,10);
+  const res=(await Service.getAll('reservations')).filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
+  $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Nueva reserva</h2>
+  <label>Vehículo</label>${vehBtns()}
+  <label>Empleado</label>${nameSel(names)}
+  <label>Fecha</label><input type="date" id="rd" value="${d}" min="${d}">
+  <div class="row"><div><label>Hora de inicio</label><input type="time" id="rs" value="${now.slice(11)}"></div><div><label>Devolución estimada</label><input type="time" id="re"></div></div>
+  <div id="rm"></div><button class="btn" onclick="reservar()">Reservar vehículo</button></div>
+  <h2>Próximas reservas</h2><div class="card">${res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${hm(r.end)}</small></div><button class="btn s" onclick="cancelar('${r.id}')">Cancelar</button></div>`).join(''):'<small>No hay reservas. Crea la primera arriba.</small>'}</div>`;
+}
+async function reservar(){
+  const name=$('#nm').value,d=$('#rd').value,s=$('#rs').value,e=$('#re').value;
+  if(!d||!s||!e||name==='__n')return msg('#rm','Completa empleado, fecha y las dos horas.');
+  const start=`${d}T${s}`,end=`${d}T${e}`;
+  if(end<=start)return msg('#rm','La hora de devolución debe ser posterior a la de inicio.');
+  if(end<=nowISO())return msg('#rm','Esa franja ya ha pasado.');
+  const c=(await Service.getAll('reservations')).find(r=>r.veh===S.veh&&start<r.end&&end>r.start);
+  if(c)return msg('#rm',`⚠️ ${VEH[S.veh].n} ya está reservado por ${esc(c.name)} de ${hm(c.start)} a ${hm(c.end)} (${new Date(c.start).toLocaleDateString('es-ES')}). Elige otra franja u otro vehículo.`);
+  await Service.add('reservations',{veh:S.veh,name,start,end});
+  toast(`✅ Reservado: ${VEH[S.veh].n}, ${fmt(start)}–${hm(end)}`);viewReservar();renderStatus();
+}
+async function cancelar(id){if(!confirm('¿Cancelar esta reserva?'))return;await Service.remove('reservations',id);toast('Reserva cancelada');viewReservar();renderStatus()}
+
+/* ---- Llaves ---- */
+async function viewLlaves(){
+  const names=await Service.getNames();S.fuel='1/2';S.photo='';
+  $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coger llave</h2>
+  <label>Vehículo</label>${vehBtns('prefill')}
+  <label>Empleado</label>${nameSel(names)}
+  <label>Kilómetros iniciales</label><input type="number" id="ks" inputmode="numeric" min="0">
+  <label>Devolución estimada (opcional)</label><input type="time" id="eta">
+  <div id="om"></div><button class="btn g" onclick="coger()">Coger llave ahora</button></div>
+  <div class="card"><h2 style="margin-top:0">Devolver llave</h2>
+  <label>Vehículo</label>${vehBtns('prefillIn')}
+  <label>Kilómetros finales</label><input type="number" id="ke" inputmode="numeric" min="0">
+  <div id="kmc" style="color:var(--m);margin-top:4px"></div>
+  <label>Nivel de combustible</label><div class="seg" id="fuel">${FUEL.map(f=>`<button type="button" class="${f===S.fuel?'on':''}" onclick="setFuel('${f}')">${f}</button>`).join('')}</div>
+  <label>Incidencias (opcional)</label><textarea id="nt" rows="2" placeholder="Golpe, aviso en el cuadro, limpieza…"></textarea>
+  <label>Foto de desperfecto (opcional)</label><input type="file" id="ph" accept="image/*" capture="environment" onchange="photo(this)"><img id="pv" class="th" style="display:none;width:100px;height:100px;margin-top:8px">
+  <div id="im"></div><button class="btn r" onclick="devolver()">Devolver llave ahora</button></div>`;
+  prefill();prefillIn();
+}
+async function prefill(){const logs=(await Service.getAll('logs')).filter(l=>l.veh===S.veh&&l.kmEnd!=null).sort((a,b)=>b.end.localeCompare(a.end));if($('#ks'))$('#ks').value=logs[0]?logs[0].kmEnd:''}
+async function prefillIn(){const l=openLog(await Service.getAll('logs'),S.veh);const e=$('#kmc');if(!e)return;e.textContent=l?`Salió con ${l.kmStart} km a las ${hm(l.out)}`:`${VEH[S.veh].n} no está en uso ahora mismo.`}
+function setFuel(f){S.fuel=f;document.querySelectorAll('#fuel button').forEach(b=>b.classList.toggle('on',b.textContent===f))}
+function photo(el){const f=el.files[0];if(!f)return;const img=new Image();img.onload=()=>{const k=Math.min(1,700/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*k;c.height=img.height*k;c.getContext('2d').drawImage(img,0,0,c.width,c.height);S.photo=c.toDataURL('image/jpeg',.6);const p=$('#pv');p.src=S.photo;p.style.display='block'};img.src=URL.createObjectURL(f)}
+async function coger(){
+  const name=$('#nm').value,ks=parseInt($('#ks').value);
+  if(name==='__n')return msg('#om','Elige el empleado.');
+  if(isNaN(ks))return msg('#om','Indica los kilómetros iniciales.');
+  const l=openLog(await Service.getAll('logs'),S.veh);
+  if(l)return msg('#om',`🔴 ${VEH[S.veh].n} ya lo tiene ${esc(l.name)} desde las ${hm(l.out)}.`);
+  const t=$('#eta').value,now=nowISO();
+  await Service.add('logs',{veh:S.veh,name,out:now,kmStart:ks,eta:t?`${now.slice(0,10)}T${t}`:'',end:'',kmEnd:null,km:null,fuel:'',notes:'',photo:''});
+  toast(`✅ ${VEH[S.veh].n} en uso a nombre de ${name}. ¡Buen viaje!`);renderStatus();viewLlaves();
+}
+async function devolver(){
+  const l=openLog(await Service.getAll('logs'),S.veh);
+  if(!l)return msg('#im',`${VEH[S.veh].n} no está en uso, no hay nada que devolver.`);
+  const ke=parseInt($('#ke').value);
+  if(isNaN(ke))return msg('#im','Indica los kilómetros finales.');
+  if(ke<l.kmStart)return msg('#im',`Los km finales no pueden ser menores que los iniciales (${l.kmStart}).`);
+  const url=S.photo?await Service.uploadPhoto(S.photo):'';
+  await Service.update('logs',l.id,{end:nowISO(),kmEnd:ke,km:ke-l.kmStart,fuel:S.fuel,notes:$('#nt').value.trim(),photo:url});
+  toast(`✅ ${VEH[S.veh].n} devuelto. Recorridos: ${ke-l.kmStart} km`);renderStatus();viewLlaves();
+}
+
+/* ---- Historial ---- */
+async function viewHistorial(){
+  const logs=(await Service.getAll('logs')).sort((a,b)=>b.out.localeCompare(a.out));const names=await Service.getNames();
+  $('#view').innerHTML=`<div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button>
+  <div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Foto</th></tr>
+  ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${l.fuel}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${l.photo?`<img class="th" src="${l.photo}" onclick="window.open(this.src)">`:''}</td></tr>`).join('')}</table></div></div>
+  <div class="card"><h2 style="margin-top:0">Empleados</h2><small style="color:var(--m)">Uno por línea.</small><textarea id="nl" rows="5">${esc(names.join('\n'))}</textarea>
+  <button class="btn" onclick="saveNames()">Guardar lista</button>
+  <button class="btn o" onclick="if(confirm('¿Restablecer los datos de ejemplo? Se borrará todo.')){Service.reset().then(()=>{renderStatus();viewHistorial()})}">Restablecer datos de ejemplo</button></div>`;
+}
+async function saveNames(){const n=$('#nl').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!n.length)return toast('Añade al menos un nombre');await Service.setNames(n);toast('✅ Lista de empleados guardada')}
+async function exportCSV(){
+  const logs=(await Service.getAll('logs')).sort((a,b)=>a.out.localeCompare(b.out));
+  const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const rows=[['Vehículo','Empleado','Salida','Devolución','Km iniciales','Km finales','Km recorridos','Combustible','Incidencias','Foto'],
+    ...logs.map(l=>[VEH[l.veh].n,l.name,l.out.replace('T',' '),l.end.replace('T',' '),l.kmStart,l.kmEnd,l.km,l.fuel,l.notes,l.photo?'Sí':'No'])];
+  const blob=new Blob(['\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`historial-vehiculos-${nowISO().slice(0,10)}.csv`;a.click();toast('✅ CSV exportado');
+}
+
+/* ---- Navegación (QR: añade #llaves, #reservar o #historial al enlace) ---- */
+const views={reservar:viewReservar,llaves:viewLlaves,historial:viewHistorial};
+function go(t){S.tab=views[t]?t:'llaves';document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tab));views[S.tab]()}
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{location.hash=b.dataset.t});
+addEventListener('hashchange',()=>go(location.hash.slice(1)));
+Service.subscribe(()=>{renderStatus();if(S.tab==='historial')viewHistorial()});
+setInterval(()=>{if(API_URL&&!document.hidden)renderStatus()},30000);
+setInterval(renderStatus,60000);
+renderStatus();go(location.hash.slice(1));
+</script></body></html>
