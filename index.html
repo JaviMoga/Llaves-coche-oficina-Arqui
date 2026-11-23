@@ -79,9 +79,9 @@ function renderStatus(){
     const nx=D.reservations.filter(r=>r.veh===k&&r.end>now).sort((a,b)=>a.start.localeCompare(b.start))[0];
     return `<div class="st ok"><span class="ic">🟢</span><div><b>${v.n}: Disponible</b><small>${nx?`Próxima reserva: ${esc(nx.name)}, ${fmt(nx.start)}`:'Sin reservas próximas'}</small></div></div>`}).join('');
 }
-const resItems=()=>{const now=iso(),res=D.reservations.filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
-  return res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div><button class="btn s" onclick="cancelar('${r.id}')">Cancelar</button></div>`).join(''):'<small>No hay reservas. Crea la primera.</small>'};
-async function cancelar(id){if(S.busy||!confirm('¿Cancelar esta reserva?'))return;S.busy=true;try{await post({a:'cancelRes',id});toast('Reserva cancelada');await refresh()}catch(e){toast('⚠️ '+e.message)}finally{S.busy=false}}
+const resItems=(adm)=>{const now=iso(),res=D.reservations.filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
+  return res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div>${adm?`<button class="btn s" onclick="cancelar('${r.id}')">Cancelar</button>`:''}</div>`).join('')+(adm?'':'<small style="margin-top:8px">Para cancelar una reserva, habla con el administrador.</small>'):'<small>No hay reservas. Crea la primera.</small>'};
+async function cancelar(id){if(S.busy||!confirm('¿Cancelar esta reserva?'))return;S.busy=true;try{await admin({a:'cancelRes',id});toast('Reserva cancelada');await refresh()}catch(e){toast('⚠️ '+e.message)}finally{S.busy=false}}
 
 /* ===== Reservar ===== */
 function viewReservar(){
@@ -141,7 +141,7 @@ function viewAdmin(){
   if(!PIN){$('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">🔒 Acceso de administrador</h2><label>PIN</label><input type="password" id="pin" inputmode="numeric" autocomplete="off"><div id="am"></div><button class="btn" onclick="run(this,'#am',login)">Entrar</button></div>`;return}
   const logs=[...D.logs].sort((a,b)=>b.out.localeCompare(a.out)),open=logs.filter(l=>!l.end);
   $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coches en uso</h2>${open.length?open.map(l=>`<div class="it"><div><b>${VEH[l.veh].i} ${VEH[l.veh].n} · ${esc(l.name)}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small></div><button class="btn s" onclick="openEdit('${l.id}')">Gestionar / forzar devolución</button></div>`).join(''):'<small>Todos los coches están disponibles.</small>'}</div>
-  <h2>Reservas</h2><div class="card">${resItems()}</div>
+  <h2>Reservas</h2><div class="card">${resItems(true)}</div>
   <h2>Historial</h2><div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button><div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Foto</th><th></th></tr>
   ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${esc(l.fuel)}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${l.photo?`<img class="th" src="${esc(l.photo)}" onclick="window.open(this.src)">`:''}</td><td><button class="btn s" style="background:var(--bg);color:var(--p)" onclick="openEdit('${l.id}')">✏️</button></td></tr>`).join('')}</table></div></div>
   <h2>Empleados</h2><div class="card"><small style="color:var(--m)">Uno por línea. Solo estos nombres aparecen en la app.</small><textarea id="nl" rows="7">${esc(D.names.join('\n'))}</textarea><div id="nm2"></div><button class="btn" onclick="run(this,'#nm2',saveNames)">Guardar lista</button></div>
