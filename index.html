@@ -21,6 +21,7 @@ input,select,textarea{width:100%;font:inherit;padding:13px;border:1.5px solid va
 .seg button.on{border-color:var(--p);background:var(--p);color:#fff}
 .btn{width:100%;margin-top:14px;padding:16px;border:0;border-radius:14px;background:var(--p);color:#fff;font:inherit;font-weight:700;font-size:1.05rem}
 .btn:disabled{opacity:.6}.btn.g{background:var(--ok);color:#fff}.btn.r{background:var(--ko)}.btn.s{width:auto;margin:0;padding:8px 12px;font-size:.85rem;background:var(--kob);color:var(--ko)}
+.btn.s.m{background:var(--bg);color:var(--p);border:1.5px solid var(--p);white-space:nowrap}
 .btn.o{background:transparent;color:var(--p);border:2px solid var(--p)}.btn.o.d{color:var(--ko);border-color:var(--ko)}
 .msg{padding:12px;border-radius:12px;margin-top:12px;font-weight:600}.msg.e{background:var(--kob);color:var(--ko)}
 .it{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--b)}.it:last-child{border:0}.it small{color:var(--m);display:block}
@@ -28,6 +29,16 @@ input,select,textarea{width:100%;font:inherit;padding:13px;border:1.5px solid va
 .th{width:44px;height:44px;object-fit:cover;border-radius:8px}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--c);border-top:1px solid var(--b);padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;padding:12px 4px;border:0;background:none;color:var(--m);font:inherit;font-size:.8rem;font-weight:600}nav button span{display:block;font-size:1.4rem}nav button.on{color:var(--p)}
+.calh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.calh button{width:44px;height:40px;border:0;border-radius:10px;background:var(--bg);color:var(--t);font-size:1.3rem}.calh b{text-transform:capitalize}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}.cal i{font-style:normal;color:var(--m);font-size:.75rem;padding:4px 0}.cal u{text-decoration:none}
+.cal button{aspect-ratio:1;border:2px solid transparent;border-radius:10px;background:var(--bg);color:var(--t);font:inherit;font-size:.9rem;padding:2px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cal button.off{opacity:.35}.cal button.tod{border-color:var(--m)}.cal button.sel{border-color:var(--p);background:var(--p);color:#fff}
+.cal span{display:flex;gap:3px;height:8px}em{display:inline-block;width:7px;height:7px;border-radius:50%}em.gasolina{background:#2563eb}em.diesel{background:#d97706}.cal button.sel em{box-shadow:0 0 0 1.5px #fff}
+.leg{margin-top:8px;font-size:.8rem;color:var(--m)}.leg em{margin:0 3px 0 8px}
+.pvs{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.pv{position:relative}.pv img{width:84px;height:84px;object-fit:cover;border-radius:10px;display:block;cursor:pointer}
+.pv button{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;border:0;background:var(--ko);color:#fff;font-weight:700}
+.pv b{position:absolute;left:4px;bottom:4px;background:#000a;color:#fff;font-size:.7rem;font-weight:600;padding:2px 6px;border-radius:6px;pointer-events:none}
+.hint{display:block;color:var(--m);font-size:.8rem;margin-top:6px}
 dialog{width:92%;max-width:460px;border:0;border-radius:16px;background:var(--c);color:var(--t);padding:16px;max-height:92vh}dialog::backdrop{background:#0009}
 #toast{position:fixed;left:12px;right:12px;bottom:calc(90px + env(safe-area-inset-bottom));max-width:616px;margin:0 auto;background:var(--t);color:var(--bg);padding:14px;border-radius:12px;text-align:center;font-weight:600;display:none;z-index:99}
 </style></head><body>
@@ -37,8 +48,11 @@ dialog{width:92%;max-width:460px;border:0;border-radius:16px;background:var(--c)
 <script>
 /* Pega aquí la URL de tu Apps Script (termina en /exec) */
 const API_URL='https://script.google.com/macros/s/AKfycbyZknytxoKK6-QHONgMDJmmOXOoDeOmlMhWf_Q8TBzZqsGeKjhFfysgpabgNq_bPbG2kg/exec';
+/* Correo del administrador para pedir cancelaciones */
+const ADMIN_MAIL='Javier@arquiforma.com';
 const VEH={gasolina:{n:'Gasolina',i:'⛽'},diesel:{n:'Diésel',i:'🛢️'}};
 const FUEL=['Reserva','1/4','1/2','3/4','Lleno'];
+const MAXPH=5;
 
 /* ===== Capa de servicios (todo pasa por el servidor, que valida) ===== */
 const api=async(url,opt)=>{if(!/^https:\/\//.test(API_URL))throw new Error('Falta pegar la URL de Apps Script en API_URL');const r=await fetch(url,opt),j=await r.json();if(j&&j.error)throw new Error(j.error);return j};
@@ -55,7 +69,8 @@ const p2=n=>String(n).padStart(2,'0');
 const iso=(d=new Date())=>`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
 const fmt=d=>new Date(d).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const hm=d=>new Date(d).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-const S={tab:'llaves',veh:'gasolina',fuel:'1/2',photo:'',busy:false,onPick:null};
+const S={tab:'llaves',veh:'gasolina',fuel:'1/2',busy:false,onPick:null,sel:'',cy:0,cm:0};
+const P={ret:[],edit:[],rep:null};
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
 const msg=(id,t)=>{$(id).innerHTML=`<div class="msg e">${t}</div>`};
 /* Ejecuta una acción con botón bloqueado ("Guardando…") para evitar dobles pulsaciones */
@@ -80,29 +95,65 @@ function renderStatus(){
     return `<div class="st ok"><span class="ic">🟢</span><div><b>${v.n}: Disponible</b><small>${nx?`Próxima reserva: ${esc(nx.name)}, ${fmt(nx.start)}`:'Sin reservas próximas'}</small></div></div>`}).join('');
 }
 const resItems=(adm)=>{const now=iso(),res=D.reservations.filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
-  return res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div>${adm?`<button class="btn s" onclick="cancelar('${r.id}')">Cancelar</button>`:''}</div>`).join('')+(adm?'':'<small style="margin-top:8px">Para cancelar una reserva, habla con el administrador.</small>'):'<small>No hay reservas. Crea la primera.</small>'};
+  return res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div>${adm?`<button class="btn s" onclick="cancelar('${r.id}')">Cancelar</button>`:`<button class="btn s m" onclick="pedirCancel('${r.id}')">✉️ Pedir cancelación</button>`}</div>`).join(''):'<small>No hay reservas. Crea la primera.</small>'};
 async function cancelar(id){if(S.busy||!confirm('¿Cancelar esta reserva?'))return;S.busy=true;try{await admin({a:'cancelRes',id});toast('Reserva cancelada');await refresh()}catch(e){toast('⚠️ '+e.message)}finally{S.busy=false}}
+/* Abre el correo del móvil con la petición de cancelación ya escrita */
+function pedirCancel(id){
+  const r=D.reservations.find(x=>x.id===id);if(!r)return;
+  const sub=`Cancelar reserva ${VEH[r.veh].n} - ${r.name} (${fmt(r.start)})`;
+  const body=`Hola Javier,\n\nPor favor, cancela esta reserva de vehículo:\n\nVehículo: ${VEH[r.veh].n}\nEmpleado: ${r.name}\nDesde: ${fmt(r.start)}\nHasta: ${fmt(r.end)}\nReferencia: ${r.id}\n\nGracias.`;
+  location.href=`mailto:${ADMIN_MAIL}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+}
 
 /* ===== Reservar ===== */
+const MAXD=14;
+const ymd=d=>`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+const addD=(s,n)=>{const [y,m,d]=s.split('-').map(Number);return ymd(new Date(y,m-1,d+n))};
+const wk=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).getDay()};
+const okDay=s=>{const t=ymd(new Date());return s>=t&&s<=addD(t,MAXD)&&wk(s)%6!==0};
+const dm=s=>s.split('-').reverse().join('/');
+function firstOk(){let s=ymd(new Date());while(!okDay(s))s=addD(s,1);return s}
+function calHTML(){
+  const y=S.cy,m=S.cm,first=new Date(y,m,1),lead=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),t=ymd(new Date());
+  let h=`<div class="calh"><button onclick="calNav(-1)">‹</button><b>${first.toLocaleDateString('es-ES',{month:'long',year:'numeric'})}</b><button onclick="calNav(1)">›</button></div><div class="cal">${['L','M','X','J','V','S','D'].map(d=>`<i>${d}</i>`).join('')}`;
+  for(let i=0;i<lead;i++)h+='<u></u>';
+  for(let d=1;d<=days;d++){const s=`${y}-${p2(m+1)}-${p2(d)}`,ok=okDay(s),dots=Object.keys(VEH).filter(k=>D.reservations.some(r=>r.veh===k&&r.start.slice(0,10)<=s&&r.end.slice(0,10)>=s)).map(k=>`<em class="${k}"></em>`).join('');
+    h+=`<button class="${ok?'':'off'} ${s===t?'tod':''} ${s===S.sel?'sel':''}" ${ok?`onclick="selDay('${s}')"`:'disabled'}>${d}<span>${dots}</span></button>`}
+  return h+`</div><div class="leg"><em class="gasolina"></em>Gasolina<em class="diesel"></em>Diésel · días en gris: no reservables (fines de semana o más de ${MAXD} días)</div>`;
+}
+function dayList(){
+  const s=S.sel,rs=D.reservations.filter(r=>r.start.slice(0,10)<=s&&r.end.slice(0,10)>=s).sort((a,b)=>a.start.localeCompare(b.start));
+  return `<b>${new Date(s+'T12:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}</b>`+(rs.length?rs.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div><button class="btn s m" onclick="pedirCancel('${r.id}')">✉️ Pedir cancelación</button></div>`).join('')+'<small class="hint">«Pedir cancelación» abre un correo al administrador con los datos de la reserva.</small>':'<small style="display:block;margin-top:6px">Nadie ha reservado este día: libre 🟢</small>');
+}
+function drawCal(){$('#cal').innerHTML=calHTML();$('#dayl').innerHTML=dayList()}
+function calNav(n){const d=new Date(S.cy,S.cm+n,1);S.cy=d.getFullYear();S.cm=d.getMonth();drawCal()}
+function selDay(s){S.sel=s;$('#rd').value=s;$('#rd2').value=s;drawCal()}
 function viewReservar(){
-  const now=iso(),d=now.slice(0,10);
-  $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Nueva reserva</h2>
+  const now=iso(),t=now.slice(0,10),lim=addD(t,MAXD);if(!S.sel||!okDay(S.sel))S.sel=firstOk();
+  const [y,m]=S.sel.split('-').map(Number);S.cy=y;S.cm=m-1;
+  $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Calendario de reservas</h2><div id="cal"></div><div id="dayl" style="margin-top:12px"></div></div>
+  <div class="card"><h2 style="margin-top:0">Próximas reservas</h2>${resItems(false)}</div>
+  <div class="card"><h2 style="margin-top:0">Nueva reserva</h2><small style="color:var(--m)">Solo de lunes a viernes y hasta ${MAXD} días vista (hasta el ${dm(lim)}). Toca un día del calendario para elegirlo.</small>
   <label>Vehículo</label>${vehBtns()}<label>Empleado</label>${nameSel()}
-  <div class="row"><div><label>Día de inicio</label><input type="date" id="rd" value="${d}" min="${d}" onchange="if($('#rd2').value<this.value)$('#rd2').value=this.value"></div><div><label>Hora de inicio</label><input type="time" id="rs" value="${now.slice(11)}"></div></div>
-  <div class="row"><div><label>Día de devolución</label><input type="date" id="rd2" value="${d}" min="${d}"></div><div><label>Hora de devolución</label><input type="time" id="re"></div></div>
-  <div id="rm"></div><button class="btn" onclick="run(this,'#rm',reservar)">Reservar vehículo</button></div>
-  <h2>Próximas reservas</h2><div class="card">${resItems()}</div>`;
+  <div class="row"><div><label>Día de inicio</label><input type="date" id="rd" value="${S.sel}" min="${t}" max="${lim}" onchange="if($('#rd2').value<this.value)$('#rd2').value=this.value"></div><div><label>Hora de inicio</label><input type="time" id="rs" value="${S.sel===t?now.slice(11):'09:00'}"></div></div>
+  <div class="row"><div><label>Día de devolución</label><input type="date" id="rd2" value="${S.sel}" min="${t}" max="${lim}"></div><div><label>Hora de devolución</label><input type="time" id="re"></div></div>
+  <div id="rm"></div><button class="btn" onclick="run(this,'#rm',reservar)">Reservar vehículo</button></div>`;
+  drawCal();
 }
 async function reservar(){
-  const name=$('#nm').value,d1=$('#rd').value,s=$('#rs').value,d2=$('#rd2').value,e=$('#re').value;
+  const name=$('#nm').value,d1=$('#rd').value,s=$('#rs').value,d2=$('#rd2').value,e=$('#re').value,t=ymd(new Date());
   if(!name||!d1||!s||!d2||!e)throw new Error('Completa empleado, días y horas.');
+  if(d2<d1)throw new Error('El día de devolución no puede ser anterior al de inicio.');
+  if(d1<t)throw new Error('No se puede reservar en una fecha pasada.');
+  if(d2>addD(t,MAXD))throw new Error(`Solo se puede reservar hasta ${MAXD} días vista (hasta el ${dm(addD(t,MAXD))}).`);
+  for(let x=d1;x<=d2;x=addD(x,1))if(wk(x)%6===0)throw new Error(`No se puede reservar en fin de semana (${dm(x)}).`);
   await post({a:'reserve',veh:S.veh,name,start:`${d1}T${s}`,end:`${d2}T${e}`,now:iso()});
   toast(`✅ Reservado: ${VEH[S.veh].n}, ${fmt(d1+'T'+s)}`);await refresh();
 }
 
 /* ===== Llaves ===== */
 function viewLlaves(){
-  S.fuel='1/2';S.photo='';S.onPick=()=>{prefill();prefillIn()};
+  S.fuel='1/2';P.ret=[];S.onPick=()=>{prefill();prefillIn()};
   $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coger llave</h2>
   <label>Vehículo</label>${vehBtns()}<label>Empleado</label>${nameSel()}
   <label>Kilómetros iniciales</label><input type="number" id="ks" inputmode="numeric" min="0">
@@ -113,14 +164,25 @@ function viewLlaves(){
   <div id="kmc" style="color:var(--m);margin-top:4px"></div>
   <label>Nivel de combustible</label><div class="seg" id="fuel">${FUEL.map(f=>`<button type="button" class="${f===S.fuel?'on':''}" onclick="setFuel('${f}')">${f}</button>`).join('')}</div>
   <label>Incidencias (opcional)</label><textarea id="nt" rows="2" placeholder="Golpe, aviso en el cuadro, limpieza…"></textarea>
-  <label>Foto de desperfecto (opcional)</label><input type="file" id="ph" accept="image/*" capture="environment" onchange="photo(this)"><img id="pv" class="th" style="display:none;width:100px;height:100px;margin-top:8px">
+  <label>Fotos de desperfectos (opcional, hasta ${MAXPH})</label>${photoPicker('ret')}
   <div id="im"></div><button class="btn r" onclick="run(this,'#im',devolver)">Devolver llave ahora</button></div>`;
   prefill();prefillIn();
 }
 function prefill(){const l=D.logs.filter(l=>l.veh===S.veh&&l.kmEnd!=null).sort((a,b)=>b.end.localeCompare(a.end))[0];if($('#ks'))$('#ks').value=l?l.kmEnd:''}
 function prefillIn(){const l=openLog(S.veh),e=$('#kmc');if(e)e.textContent=l?`${VEH[S.veh].n}: salió con ${l.kmStart} km a las ${hm(l.out)} (${l.name})`:`${VEH[S.veh].n} no está en uso ahora mismo.`}
 function setFuel(f){S.fuel=f;document.querySelectorAll('#fuel button').forEach(b=>b.classList.toggle('on',b.textContent===f))}
-function photo(el){const f=el.files[0];if(!f)return;const img=new Image();img.onload=()=>{const k=Math.min(1,700/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*k;c.height=img.height*k;c.getContext('2d').drawImage(img,0,0,c.width,c.height);S.photo=c.toDataURL('image/jpeg',.6);const p=$('#pv');p.src=S.photo;p.style.display='block'};img.src=URL.createObjectURL(f)}
+const ph=s=>String(s||'').split(/\s+/).filter(Boolean);
+/* Selector de fotos: añadir varias (cámara o galería), repetir una tocándola o quitarla con ✕ */
+const photoPicker=k=>`<div class="row"><button type="button" class="btn o" style="margin:0" onclick="$('#${k}1').click()">📷 Añadir foto</button><button type="button" class="btn o" style="margin:0" onclick="$('#${k}2').click()">🖼️ Galería</button></div><input type="file" id="${k}1" accept="image/*" capture="environment" hidden onchange="addPh('${k}',this)"><input type="file" id="${k}2" accept="image/*" multiple hidden onchange="addPh('${k}',this)"><input type="file" id="${k}3" accept="image/*" capture="environment" hidden onchange="repPhDone('${k}',this)"><div class="pvs" id="pv-${k}"></div><small class="hint" id="ph-${k}">Puedes añadir varias fotos, una detrás de otra.</small>`;
+const shrink=f=>new Promise((ok,ko)=>{const img=new Image();img.onload=()=>{const k=Math.min(1,700/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*k;c.height=img.height*k;c.getContext('2d').drawImage(img,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.6))};img.onerror=()=>ko(new Error('No se pudo leer la foto'));img.src=URL.createObjectURL(f)});
+async function addPh(k,inp){const fl=[...inp.files];inp.value='';for(const f of fl){if(P[k].length>=MAXPH){toast(`Máximo ${MAXPH} fotos nuevas`);break}try{P[k].push(await shrink(f))}catch(e){toast('⚠️ '+e.message)}drawPh(k)}}
+function repPh(k,i){P.rep=i;$('#'+k+'3').click()}
+async function repPhDone(k,inp){const f=inp.files[0];inp.value='';if(!f||P.rep==null)return;try{P[k][P.rep]=await shrink(f);toast('✅ Foto cambiada')}catch(e){toast('⚠️ '+e.message)}P.rep=null;drawPh(k)}
+function drawPh(k){
+  $('#pv-'+k).innerHTML=P[k].map((u,i)=>`<div class="pv"><img src="${u}" onclick="repPh('${k}',${i})" alt="Foto ${i+1}"><b>🔄 Repetir</b><button type="button" onclick="delPh('${k}',${i})" aria-label="Quitar foto">✕</button></div>`).join('');
+  const h=$('#ph-'+k);if(h)h.textContent=P[k].length?`${P[k].length} de ${MAXPH} fotos · toca una foto para repetirla o ✕ para quitarla.`:'Puedes añadir varias fotos, una detrás de otra.';
+}
+function delPh(k,i){P[k].splice(i,1);drawPh(k)}
 async function coger(){
   const name=$('#nm').value,ks=parseInt($('#ks').value),now=iso();
   if(!name)throw new Error('Elige el empleado.');if(isNaN(ks))throw new Error('Indica los kilómetros iniciales.');
@@ -132,7 +194,7 @@ async function coger(){
 }
 async function devolver(){
   const ke=parseInt($('#ke').value);if(isNaN(ke))throw new Error('Indica los kilómetros finales.');
-  const r=await post({a:'checkin',veh:S.veh,kmEnd:ke,fuel:S.fuel,notes:$('#nt').value,photo:S.photo,now:iso()});
+  const r=await post({a:'checkin',veh:S.veh,kmEnd:ke,fuel:S.fuel,notes:$('#nt').value,photos:P.ret,now:iso()});
   toast(`✅ ${VEH[S.veh].n} devuelto. Recorridos: ${r.km} km`);await refresh();
 }
 
@@ -142,19 +204,20 @@ function viewAdmin(){
   const logs=[...D.logs].sort((a,b)=>b.out.localeCompare(a.out)),open=logs.filter(l=>!l.end);
   $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coches en uso</h2>${open.length?open.map(l=>`<div class="it"><div><b>${VEH[l.veh].i} ${VEH[l.veh].n} · ${esc(l.name)}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small></div><button class="btn s" onclick="openEdit('${l.id}')">Gestionar / forzar devolución</button></div>`).join(''):'<small>Todos los coches están disponibles.</small>'}</div>
   <h2>Reservas</h2><div class="card">${resItems(true)}</div>
-  <h2>Historial</h2><div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button><div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Foto</th><th></th></tr>
-  ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${esc(l.fuel)}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${l.photo?`<img class="th" src="${esc(l.photo)}" onclick="window.open(this.src)">`:''}</td><td><button class="btn s" style="background:var(--bg);color:var(--p)" onclick="openEdit('${l.id}')">✏️</button></td></tr>`).join('')}</table></div></div>
+  <h2>Historial</h2><div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button><div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Fotos</th><th></th></tr>
+  ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${esc(l.fuel)}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${ph(l.photo).map(u=>`<img class="th" src="${esc(u)}" onclick="window.open(this.src)">`).join(' ')}</td><td><button class="btn s" style="background:var(--bg);color:var(--p)" onclick="openEdit('${l.id}')">✏️</button></td></tr>`).join('')}</table></div></div>
   <h2>Empleados</h2><div class="card"><small style="color:var(--m)">Uno por línea. Solo estos nombres aparecen en la app.</small><textarea id="nl" rows="7">${esc(D.names.join('\n'))}</textarea><div id="nm2"></div><button class="btn" onclick="run(this,'#nm2',saveNames)">Guardar lista</button></div>
   <button class="btn o" onclick="PIN='';try{sessionStorage.removeItem('pin')}catch(e){};viewAdmin()">Cerrar sesión de administrador</button>`;
 }
 async function login(){const p=$('#pin').value.trim();if(!p)throw new Error('Escribe el PIN.');await post({a:'login',pin:p});PIN=p;try{sessionStorage.setItem('pin',p)}catch(e){}viewAdmin()}
 async function saveNames(){const n=$('#nl').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!n.length)throw new Error('Añade al menos un nombre.');await admin({a:'setNames',names:n});toast('✅ Lista de empleados guardada');await refresh()}
 function openEdit(id){
-  const l=D.logs.find(x=>x.id===id);if(!l)return;
+  const l=D.logs.find(x=>x.id===id);if(!l)return;P.edit=[];
   $('#dlg').innerHTML=`<h2 style="margin-top:0">Editar registro</h2><small>${VEH[l.veh].n} · ${fmt(l.out)}${l.end?' → '+fmt(l.end):' · en uso'}</small>
   <label>Empleado</label><input id="en" list="nl2" value="${esc(l.name)}"><datalist id="nl2">${D.names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
   <div class="row"><div><label>Km iniciales</label><input id="e1" type="number" value="${l.kmStart??''}"></div><div><label>Km finales</label><input id="e2" type="number" value="${l.kmEnd??''}"></div></div>
   <label>Combustible</label><select id="ef"><option value=""></option>${FUEL.map(f=>`<option ${f===l.fuel?'selected':''}>${f}</option>`).join('')}</select>
+  <label>Fotos${ph(l.photo).length?' (marca "Quitar" las que salieron mal)':''}</label>${ph(l.photo).length?`<div class="pvs">${ph(l.photo).map(u=>`<label style="display:block;margin:0;font-weight:400;font-size:.75rem;text-align:center"><img class="th" style="width:84px;height:84px" src="${esc(u)}"><br><input type="checkbox" class="ph-rm" value="${esc(u)}" style="width:auto;display:inline"> Quitar</label>`).join('')}</div>`:''}<div style="margin-top:10px">${photoPicker('edit')}</div>
   <label>Incidencias</label><textarea id="et" rows="2">${esc(l.notes)}</textarea><div id="em"></div>
   <button class="btn" onclick="saveEdit(this,'${id}')">Guardar cambios</button>
   ${l.end?'':`<button class="btn g" onclick="forzar(this,'${id}')">La llave ya está: cerrar salida</button>`}
@@ -163,13 +226,13 @@ function openEdit(id){
   $('#dlg').showModal();
 }
 const done=async m=>{$('#dlg').close();toast(m);await refresh()};
-const saveEdit=(b,id)=>run(b,'#em',async()=>{await admin({a:'editLog',id,p:{name:$('#en').value,kmStart:$('#e1').value,kmEnd:$('#e2').value,fuel:$('#ef').value,notes:$('#et').value}});await done('✅ Registro actualizado')});
+const saveEdit=(b,id)=>run(b,'#em',async()=>{await admin({a:'editLog',id,p:{name:$('#en').value,kmStart:$('#e1').value,kmEnd:$('#e2').value,fuel:$('#ef').value,notes:$('#et').value,photo:ph(D.logs.find(x=>x.id===id).photo).filter(u=>![...document.querySelectorAll('.ph-rm:checked')].some(c=>c.value===u)).join(' '),newPhotos:P.edit}});await done('✅ Registro actualizado')});
 const forzar=(b,id)=>run(b,'#em',async()=>{if(!confirm('¿Marcar la llave como devuelta? Los km finales se toman del campo "Km finales" (puede quedar vacío).'))return;await admin({a:'forceReturn',id,kmEnd:$('#e2').value,now:iso()});await done('✅ Salida cerrada por el administrador')});
 const borrarLog=(b,id)=>run(b,'#em',async()=>{if(!confirm('¿Anular y borrar este registro? No se puede deshacer.'))return;await admin({a:'deleteLog',id});await done('Registro anulado')});
 function exportCSV(){
   const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
-  const rows=[['Vehículo','Empleado','Salida','Devolución','Km iniciales','Km finales','Km recorridos','Combustible','Incidencias','Foto'],...[...D.logs].sort((a,b)=>a.out.localeCompare(b.out)).map(l=>[VEH[l.veh].n,l.name,l.out.replace('T',' '),l.end.replace('T',' '),l.kmStart,l.kmEnd,l.km,l.fuel,l.notes,l.photo])];
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download=`historial-vehiculos-${iso().slice(0,10)}.csv`;a.click();toast('✅ CSV exportado');
+  const rows=[['Vehículo','Empleado','Salida','Devolución','Km iniciales','Km finales','Km recorridos','Combustible','Incidencias','Fotos'],...[...D.logs].sort((a,b)=>a.out.localeCompare(b.out)).map(l=>[VEH[l.veh].n,l.name,l.out.replace('T',' '),l.end.replace('T',' '),l.kmStart,l.kmEnd,l.km,l.fuel,l.notes,l.photo])];
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+rows.map(r=>r.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download=`historial-vehiculos-${iso().slice(0,10)}.csv`;a.click();toast('✅ CSV exportado');
 }
 
 /* ===== Navegación (QR: #llaves, #reservar, #admin) ===== */
