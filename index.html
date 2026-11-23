@@ -97,7 +97,7 @@ function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';cl
 function msg(id,t,type='e'){$(id).innerHTML=`<div class="msg ${type==='e'?'e':'i'}">${t}</div>`}
 const vehBtns=(fn)=>`<div class="seg">${Object.entries(VEH).map(([k,v])=>`<button type="button" data-v="${k}" class="${S.veh===k?'on':''}" onclick="pick('${k}',${fn})">${v.i} ${v.n}</button>`).join('')}</div>`;
 function pick(v,fn){S.veh=v;document.querySelectorAll('.seg button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(fn)fn()}
-const nameSel=(names,sel)=>`<select id="nm" onchange="newName(this)">${names.map(n=>`<option ${n===sel?'selected':''}>${esc(n)}</option>`).join('')}<option value="__n">➕ Otro nombre…</option></select>`;
+const nameSel=(names,sel)=>`<select id="nm" onchange="newName(this)">${names.map(n=>`<option ${n===sel?'selected':''}>${esc(n)}</option>`).join('')}</select>`;
 async function newName(el){if(el.value!=='__n')return;const n=(prompt('Nombre del empleado:')||'').trim();if(!n){el.selectedIndex=0;return}
   const names=await Service.getNames();if(!names.includes(n)){names.push(n);await Service.setNames(names)}
   const o=new Option(n,n);el.add(o,el.options[el.options.length-1]);el.value=n}
