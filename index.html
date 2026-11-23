@@ -13,201 +13,175 @@ h1{font-size:1.3rem;margin:6px 4px 12px}h2{font-size:1.05rem;margin:18px 4px 8px
 .st{display:flex;gap:12px;align-items:center;border-left:8px solid;border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
 .st.ok{background:var(--okb);border-color:var(--ok)}.st.ko{background:var(--kob);border-color:var(--ko)}
 .st b{font-size:1.05rem}.st small{display:block;color:var(--m)}.st .ic{font-size:1.8rem}
+.tag{display:inline-block;background:#fde68a;color:#78350f;border-radius:8px;padding:2px 8px;font-size:.8rem;font-weight:700;margin-top:4px}
 label{display:block;font-weight:600;margin:12px 0 4px;font-size:.92rem}
 input,select,textarea{width:100%;font:inherit;padding:13px;border:1.5px solid var(--b);border-radius:12px;background:var(--bg);color:var(--t)}
 .row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
 .seg{display:flex;gap:6px}.seg button{flex:1;padding:14px 4px;border:2px solid var(--b);background:var(--bg);color:var(--t);border-radius:12px;font:inherit;font-weight:600}
 .seg button.on{border-color:var(--p);background:var(--p);color:#fff}
-.btn{width:100%;margin-top:16px;padding:16px;border:0;border-radius:14px;background:var(--p);color:#fff;font:inherit;font-weight:700;font-size:1.05rem}
-.btn.g{background:var(--ok);color:#fff}.btn.r{background:var(--ko)}.btn.s{width:auto;margin:0;padding:8px 12px;font-size:.85rem;background:var(--kob);color:var(--ko)}
-.btn.o{background:transparent;color:var(--p);border:2px solid var(--p)}
-.msg{padding:12px;border-radius:12px;margin-top:12px;font-weight:600}.msg.e{background:var(--kob);color:var(--ko)}.msg.i{background:var(--okb);color:var(--ok)}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--c);border-top:1px solid var(--b);padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;padding:12px 4px;border:0;background:none;color:var(--m);font:inherit;font-size:.8rem;font-weight:600}nav button span{display:block;font-size:1.4rem}nav button.on{color:var(--p)}
+.btn{width:100%;margin-top:14px;padding:16px;border:0;border-radius:14px;background:var(--p);color:#fff;font:inherit;font-weight:700;font-size:1.05rem}
+.btn:disabled{opacity:.6}.btn.g{background:var(--ok);color:#fff}.btn.r{background:var(--ko)}.btn.s{width:auto;margin:0;padding:8px 12px;font-size:.85rem;background:var(--kob);color:var(--ko)}
+.btn.o{background:transparent;color:var(--p);border:2px solid var(--p)}.btn.o.d{color:var(--ko);border-color:var(--ko)}
+.msg{padding:12px;border-radius:12px;margin-top:12px;font-weight:600}.msg.e{background:var(--kob);color:var(--ko)}
 .it{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--b)}.it:last-child{border:0}.it small{color:var(--m);display:block}
 .tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.82rem;white-space:nowrap}th,td{padding:8px;border-bottom:1px solid var(--b);text-align:left}th{color:var(--m)}
 .th{width:44px;height:44px;object-fit:cover;border-radius:8px}
-#toast{position:fixed;left:12px;right:12px;bottom:calc(90px + env(safe-area-inset-bottom));max-width:616px;margin:0 auto;background:var(--t);color:var(--bg);padding:14px;border-radius:12px;text-align:center;font-weight:600;display:none;z-index:9}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--c);border-top:1px solid var(--b);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;padding:12px 4px;border:0;background:none;color:var(--m);font:inherit;font-size:.8rem;font-weight:600}nav button span{display:block;font-size:1.4rem}nav button.on{color:var(--p)}
+dialog{width:92%;max-width:460px;border:0;border-radius:16px;background:var(--c);color:var(--t);padding:16px;max-height:92vh}dialog::backdrop{background:#0009}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(90px + env(safe-area-inset-bottom));max-width:616px;margin:0 auto;background:var(--t);color:var(--bg);padding:14px;border-radius:12px;text-align:center;font-weight:600;display:none;z-index:99}
 </style></head><body>
 <main><h1>🔑 Llaves de vehículos</h1><div id="status"></div><div id="view"></div></main>
-<div id="toast"></div>
-<nav id="nav"><button data-t="reservar"><span>📅</span>Reservar</button><button data-t="llaves"><span>🔑</span>Llaves</button><button data-t="historial"><span>📋</span>Historial</button></nav>
+<dialog id="dlg"></dialog><div id="toast"></div>
+<nav><button data-t="reservar"><span>📅</span>Reservar</button><button data-t="llaves"><span>🔑</span>Llaves</button><button data-t="admin"><span>🔒</span>Admin</button></nav>
 <script>
-/* ================= CONFIG ================= */
-/* Pega aquí la URL de tu Apps Script (termina en /exec). Vacío = modo demo con localStorage */
+/* Pega aquí la URL de tu Apps Script (termina en /exec) */
 const API_URL='https://script.google.com/macros/s/AKfycbyZknytxoKK6-QHONgMDJmmOXOoDeOmlMhWf_Q8TBzZqsGeKjhFfysgpabgNq_bPbG2kg/exec';
 const VEH={gasolina:{n:'Gasolina',i:'⛽'},diesel:{n:'Diésel',i:'🛢️'}};
 const FUEL=['Reserva','1/4','1/2','3/4','Lleno'];
 
-/* ============ CAPA DE SERVICIOS (único punto a cambiar para Supabase/Firebase) ============ */
-const LocalService=(()=>{
-  const K='llaves_v1';
-  const pad=n=>String(n).padStart(2,'0');
-  const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const at=(days,h)=>{const d=new Date();d.setDate(d.getDate()+days);d.setHours(h,0,0,0);return iso(d)};
-  const seed=()=>({names:['Ana','Luis','Marta','Carlos'],
-    reservations:[{id:'r1',veh:'diesel',name:'Ana',start:at(1,9),end:at(1,13)},{id:'r2',veh:'gasolina',name:'Luis',start:at(2,16),end:at(2,19)}],
-    logs:[{id:'l1',veh:'gasolina',name:'Marta',out:at(-1,9),kmStart:41200,end:at(-1,13),kmEnd:41262,km:62,fuel:'1/2',notes:'Rozadura leve en el parachoques trasero',photo:''},
-          {id:'l2',veh:'diesel',name:'Carlos',out:at(-1,15),kmStart:88010,end:at(-1,17),kmEnd:88044,km:34,fuel:'3/4',notes:'',photo:''}]});
-  let db;try{db=JSON.parse(localStorage.getItem(K))}catch(e){}
-  db=db||seed();
-  const save=()=>{try{localStorage.setItem(K,JSON.stringify(db))}catch(e){alert('Almacenamiento lleno: exporta el CSV y borra datos antiguos.')}};
-  return{
-    iso,
-    async getAll(t){return db[t].slice()},
-    async add(t,r){r.id=Math.random().toString(36).slice(2,10);db[t].push(r);save();return r},
-    async update(t,id,p){Object.assign(db[t].find(x=>x.id==id),p);save()},
-    async remove(t,id){db[t]=db[t].filter(x=>x.id!=id);save()},
-    async getNames(){return db.names.slice()},
-    async setNames(n){db.names=n;save()},
-    async uploadPhoto(dataUrl){return dataUrl},          // Supabase: subir a Storage y devolver la URL pública
-    async reset(){db=seed();save()},
-    subscribe(cb){addEventListener('storage',cb)}         // Supabase: canal Realtime
-  };
-})();
+/* ===== Capa de servicios (todo pasa por el servidor, que valida) ===== */
+const api=async(url,opt)=>{if(!/^https:\/\//.test(API_URL))throw new Error('Falta pegar la URL de Apps Script en API_URL');const r=await fetch(url,opt),j=await r.json();if(j&&j.error)throw new Error(j.error);return j};
+const post=q=>api(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(q)});
+let PIN='';try{PIN=sessionStorage.getItem('pin')||''}catch(e){}
+const admin=q=>post({...q,pin:PIN});
+let D={reservations:[],logs:[],names:[]};
+const load=async()=>{D=await api(API_URL+'?t=all')};
 
-/* ====== GOOGLE SHEETS (vía Apps Script) ====== */
-const SheetsService=(()=>{
-  const call=async(url,opt)=>{const r=await fetch(url,opt);const j=await r.json();if(j&&j.error)throw new Error(j.error);return j};
-  const post=q=>call(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(q)});
-  return{
-    iso:LocalService.iso,
-    getAll:t=>call(`${API_URL}?t=${t}`),
-    add:(t,r)=>post({a:'add',t,r}),
-    update:(t,id,p)=>post({a:'update',t,id,p}),
-    remove:(t,id)=>post({a:'remove',t,id}),
-    getNames:async()=>(await call(`${API_URL}?t=names`)).map(x=>x.name),
-    setNames:n=>post({a:'setNames',names:n}),
-    uploadPhoto:async d=>(await post({a:'photo',data:d})).url,
-    reset:async()=>alert('Para borrar datos, elimina las filas directamente en Google Sheets.'),
-    subscribe:()=>{}
-  };
-})();
-const Service=API_URL?SheetsService:LocalService;
-addEventListener('unhandledrejection',e=>toast('⚠️ Error de conexión con Google Sheets: '+(e.reason&&e.reason.message||'inténtalo de nuevo')));
-
-/* ================= UI ================= */
+/* ===== utilidades ===== */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const p2=n=>String(n).padStart(2,'0');
+const iso=(d=new Date())=>`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
 const fmt=d=>new Date(d).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const hm=d=>new Date(d).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-const nowISO=()=>Service.iso(new Date());
-const S={tab:'llaves',veh:'gasolina',fuel:'1/2',photo:''};
-function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3000)}
-function msg(id,t,type='e'){$(id).innerHTML=`<div class="msg ${type==='e'?'e':'i'}">${t}</div>`}
-const vehBtns=(fn)=>`<div class="seg">${Object.entries(VEH).map(([k,v])=>`<button type="button" data-v="${k}" class="${S.veh===k?'on':''}" onclick="pick('${k}',${fn})">${v.i} ${v.n}</button>`).join('')}</div>`;
-function pick(v,fn){S.veh=v;document.querySelectorAll('.seg button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(fn)fn()}
-const nameSel=(names,sel)=>`<select id="nm" onchange="newName(this)">${names.map(n=>`<option ${n===sel?'selected':''}>${esc(n)}</option>`).join('')}</select>`;
-async function newName(el){if(el.value!=='__n')return;const n=(prompt('Nombre del empleado:')||'').trim();if(!n){el.selectedIndex=0;return}
-  const names=await Service.getNames();if(!names.includes(n)){names.push(n);await Service.setNames(names)}
-  const o=new Option(n,n);el.add(o,el.options[el.options.length-1]);el.value=n}
-const openLog=(logs,v)=>logs.find(l=>l.veh===v&&!l.end);
+const S={tab:'llaves',veh:'gasolina',fuel:'1/2',photo:'',busy:false,onPick:null};
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
+const msg=(id,t)=>{$(id).innerHTML=`<div class="msg e">${t}</div>`};
+/* Ejecuta una acción con botón bloqueado ("Guardando…") para evitar dobles pulsaciones */
+async function run(btn,mid,fn){
+  if(S.busy)return;S.busy=true;const t=btn.textContent;btn.disabled=true;btn.textContent='Guardando…';
+  try{await fn()}catch(e){if(e.message==='PIN incorrecto'&&PIN&&mid!=='#am'){PIN='';try{sessionStorage.removeItem('pin')}catch(x){}}mid?msg(mid,'⚠️ '+e.message):toast('⚠️ '+e.message)}
+  finally{S.busy=false;btn.disabled=false;btn.textContent=t}
+}
+async function refresh(){await load();renderStatus();VIEWS[S.tab]()}
+const vehBtns=()=>`<div class="seg">${Object.entries(VEH).map(([k,v])=>`<button type="button" data-v="${k}" class="${S.veh===k?'on':''}" onclick="pick('${k}')">${v.i} ${v.n}</button>`).join('')}</div>`;
+function pick(v){S.veh=v;document.querySelectorAll('.seg button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(S.onPick)S.onPick()}
+const nameSel=()=>`<select id="nm">${D.names.map(n=>`<option>${esc(n)}</option>`).join('')}</select>`;
+const openLog=v=>D.logs.find(l=>l.veh===v&&!l.end);
 
-async function renderStatus(){
-  const [logs,res]=await Promise.all([Service.getAll('logs'),Service.getAll('reservations')]);const now=nowISO();
+function renderStatus(){
+  const now=iso();
   $('#status').innerHTML=Object.entries(VEH).map(([k,v])=>{
-    const l=openLog(logs,k);
-    if(l)return `<div class="st ko"><span class="ic">🔴</span><div><b>${v.n}: En uso por ${esc(l.name)}${l.eta?` hasta las ${hm(l.eta)}`:''}</b><small>Desde las ${hm(l.out)} · ${l.kmStart} km</small></div></div>`;
-    const nx=res.filter(r=>r.veh===k&&r.end>now).sort((a,b)=>a.start.localeCompare(b.start))[0];
+    const l=openLog(k);
+    if(l){const late=(l.eta&&l.eta<now)||Date.now()-new Date(l.out)>12*36e5;
+      return `<div class="st ko"><span class="ic">🔴</span><div><b>${v.n}: En uso por ${esc(l.name)}${l.eta?` hasta las ${hm(l.eta)}`:''}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small>${late?'<span class="tag">⏰ Pendiente de devolver</span>':''}</div></div>`}
+    const nx=D.reservations.filter(r=>r.veh===k&&r.end>now).sort((a,b)=>a.start.localeCompare(b.start))[0];
     return `<div class="st ok"><span class="ic">🟢</span><div><b>${v.n}: Disponible</b><small>${nx?`Próxima reserva: ${esc(nx.name)}, ${fmt(nx.start)}`:'Sin reservas próximas'}</small></div></div>`}).join('');
 }
+const resItems=()=>{const now=iso(),res=D.reservations.filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
+  return res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div><button class="btn s" onclick="cancelar('${r.id}')">Cancelar</button></div>`).join(''):'<small>No hay reservas. Crea la primera.</small>'};
+async function cancelar(id){if(S.busy||!confirm('¿Cancelar esta reserva?'))return;S.busy=true;try{await post({a:'cancelRes',id});toast('Reserva cancelada');await refresh()}catch(e){toast('⚠️ '+e.message)}finally{S.busy=false}}
 
-/* ---- Reservar ---- */
-async function viewReservar(){
-  const names=await Service.getNames();const now=nowISO();const d=now.slice(0,10);
-  const res=(await Service.getAll('reservations')).filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
+/* ===== Reservar ===== */
+function viewReservar(){
+  const now=iso(),d=now.slice(0,10);
   $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Nueva reserva</h2>
-  <label>Vehículo</label>${vehBtns()}
-  <label>Empleado</label>${nameSel(names)}
-  <label>Fecha</label><input type="date" id="rd" value="${d}" min="${d}">
-  <div class="row"><div><label>Hora de inicio</label><input type="time" id="rs" value="${now.slice(11)}"></div><div><label>Devolución estimada</label><input type="time" id="re"></div></div>
-  <div id="rm"></div><button class="btn" onclick="reservar()">Reservar vehículo</button></div>
-  <h2>Próximas reservas</h2><div class="card">${res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${hm(r.end)}</small></div><button class="btn s" onclick="cancelar('${r.id}')">Cancelar</button></div>`).join(''):'<small>No hay reservas. Crea la primera arriba.</small>'}</div>`;
+  <label>Vehículo</label>${vehBtns()}<label>Empleado</label>${nameSel()}
+  <div class="row"><div><label>Día de inicio</label><input type="date" id="rd" value="${d}" min="${d}" onchange="if($('#rd2').value<this.value)$('#rd2').value=this.value"></div><div><label>Hora de inicio</label><input type="time" id="rs" value="${now.slice(11)}"></div></div>
+  <div class="row"><div><label>Día de devolución</label><input type="date" id="rd2" value="${d}" min="${d}"></div><div><label>Hora de devolución</label><input type="time" id="re"></div></div>
+  <div id="rm"></div><button class="btn" onclick="run(this,'#rm',reservar)">Reservar vehículo</button></div>
+  <h2>Próximas reservas</h2><div class="card">${resItems()}</div>`;
 }
 async function reservar(){
-  const name=$('#nm').value,d=$('#rd').value,s=$('#rs').value,e=$('#re').value;
-  if(!d||!s||!e||name==='__n')return msg('#rm','Completa empleado, fecha y las dos horas.');
-  const start=`${d}T${s}`,end=`${d}T${e}`;
-  if(end<=start)return msg('#rm','La hora de devolución debe ser posterior a la de inicio.');
-  if(end<=nowISO())return msg('#rm','Esa franja ya ha pasado.');
-  const c=(await Service.getAll('reservations')).find(r=>r.veh===S.veh&&start<r.end&&end>r.start);
-  if(c)return msg('#rm',`⚠️ ${VEH[S.veh].n} ya está reservado por ${esc(c.name)} de ${hm(c.start)} a ${hm(c.end)} (${new Date(c.start).toLocaleDateString('es-ES')}). Elige otra franja u otro vehículo.`);
-  await Service.add('reservations',{veh:S.veh,name,start,end});
-  toast(`✅ Reservado: ${VEH[S.veh].n}, ${fmt(start)}–${hm(end)}`);viewReservar();renderStatus();
+  const name=$('#nm').value,d1=$('#rd').value,s=$('#rs').value,d2=$('#rd2').value,e=$('#re').value;
+  if(!name||!d1||!s||!d2||!e)throw new Error('Completa empleado, días y horas.');
+  await post({a:'reserve',veh:S.veh,name,start:`${d1}T${s}`,end:`${d2}T${e}`,now:iso()});
+  toast(`✅ Reservado: ${VEH[S.veh].n}, ${fmt(d1+'T'+s)}`);await refresh();
 }
-async function cancelar(id){if(!confirm('¿Cancelar esta reserva?'))return;await Service.remove('reservations',id);toast('Reserva cancelada');viewReservar();renderStatus()}
 
-/* ---- Llaves ---- */
-async function viewLlaves(){
-  const names=await Service.getNames();S.fuel='1/2';S.photo='';
+/* ===== Llaves ===== */
+function viewLlaves(){
+  S.fuel='1/2';S.photo='';S.onPick=()=>{prefill();prefillIn()};
   $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coger llave</h2>
-  <label>Vehículo</label>${vehBtns('prefill')}
-  <label>Empleado</label>${nameSel(names)}
+  <label>Vehículo</label>${vehBtns()}<label>Empleado</label>${nameSel()}
   <label>Kilómetros iniciales</label><input type="number" id="ks" inputmode="numeric" min="0">
   <label>Devolución estimada (opcional)</label><input type="time" id="eta">
-  <div id="om"></div><button class="btn g" onclick="coger()">Coger llave ahora</button></div>
+  <div id="om"></div><button class="btn g" onclick="run(this,'#om',coger)">Coger llave ahora</button></div>
   <div class="card"><h2 style="margin-top:0">Devolver llave</h2>
-  <label>Vehículo</label>${vehBtns('prefillIn')}
   <label>Kilómetros finales</label><input type="number" id="ke" inputmode="numeric" min="0">
   <div id="kmc" style="color:var(--m);margin-top:4px"></div>
   <label>Nivel de combustible</label><div class="seg" id="fuel">${FUEL.map(f=>`<button type="button" class="${f===S.fuel?'on':''}" onclick="setFuel('${f}')">${f}</button>`).join('')}</div>
   <label>Incidencias (opcional)</label><textarea id="nt" rows="2" placeholder="Golpe, aviso en el cuadro, limpieza…"></textarea>
   <label>Foto de desperfecto (opcional)</label><input type="file" id="ph" accept="image/*" capture="environment" onchange="photo(this)"><img id="pv" class="th" style="display:none;width:100px;height:100px;margin-top:8px">
-  <div id="im"></div><button class="btn r" onclick="devolver()">Devolver llave ahora</button></div>`;
+  <div id="im"></div><button class="btn r" onclick="run(this,'#im',devolver)">Devolver llave ahora</button></div>`;
   prefill();prefillIn();
 }
-async function prefill(){const logs=(await Service.getAll('logs')).filter(l=>l.veh===S.veh&&l.kmEnd!=null).sort((a,b)=>b.end.localeCompare(a.end));if($('#ks'))$('#ks').value=logs[0]?logs[0].kmEnd:''}
-async function prefillIn(){const l=openLog(await Service.getAll('logs'),S.veh);const e=$('#kmc');if(!e)return;e.textContent=l?`Salió con ${l.kmStart} km a las ${hm(l.out)}`:`${VEH[S.veh].n} no está en uso ahora mismo.`}
+function prefill(){const l=D.logs.filter(l=>l.veh===S.veh&&l.kmEnd!=null).sort((a,b)=>b.end.localeCompare(a.end))[0];if($('#ks'))$('#ks').value=l?l.kmEnd:''}
+function prefillIn(){const l=openLog(S.veh),e=$('#kmc');if(e)e.textContent=l?`${VEH[S.veh].n}: salió con ${l.kmStart} km a las ${hm(l.out)} (${l.name})`:`${VEH[S.veh].n} no está en uso ahora mismo.`}
 function setFuel(f){S.fuel=f;document.querySelectorAll('#fuel button').forEach(b=>b.classList.toggle('on',b.textContent===f))}
 function photo(el){const f=el.files[0];if(!f)return;const img=new Image();img.onload=()=>{const k=Math.min(1,700/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*k;c.height=img.height*k;c.getContext('2d').drawImage(img,0,0,c.width,c.height);S.photo=c.toDataURL('image/jpeg',.6);const p=$('#pv');p.src=S.photo;p.style.display='block'};img.src=URL.createObjectURL(f)}
 async function coger(){
-  const name=$('#nm').value,ks=parseInt($('#ks').value);
-  if(name==='__n')return msg('#om','Elige el empleado.');
-  if(isNaN(ks))return msg('#om','Indica los kilómetros iniciales.');
-  const l=openLog(await Service.getAll('logs'),S.veh);
-  if(l)return msg('#om',`🔴 ${VEH[S.veh].n} ya lo tiene ${esc(l.name)} desde las ${hm(l.out)}.`);
-  const t=$('#eta').value,now=nowISO();
-  await Service.add('logs',{veh:S.veh,name,out:now,kmStart:ks,eta:t?`${now.slice(0,10)}T${t}`:'',end:'',kmEnd:null,km:null,fuel:'',notes:'',photo:''});
-  toast(`✅ ${VEH[S.veh].n} en uso a nombre de ${name}. ¡Buen viaje!`);renderStatus();viewLlaves();
+  const name=$('#nm').value,ks=parseInt($('#ks').value),now=iso();
+  if(!name)throw new Error('Elige el empleado.');if(isNaN(ks))throw new Error('Indica los kilómetros iniciales.');
+  const c=D.reservations.find(r=>r.veh===S.veh&&r.name!==name&&r.start<iso(new Date(Date.now()+36e5))&&r.end>now);
+  if(c&&!confirm(`⚠️ ${VEH[S.veh].n} está reservado por ${c.name} (${fmt(c.start)} – ${fmt(c.end)}).\n¿Cogerlo igualmente?`))return;
+  const t=$('#eta').value;let eta=t?`${now.slice(0,10)}T${t}`:'';if(eta&&eta<=now)eta='';
+  await post({a:'checkout',veh:S.veh,name,kmStart:ks,eta,now});
+  toast(`✅ ${VEH[S.veh].n} en uso a nombre de ${name}. ¡Buen viaje!`);await refresh();
 }
 async function devolver(){
-  const l=openLog(await Service.getAll('logs'),S.veh);
-  if(!l)return msg('#im',`${VEH[S.veh].n} no está en uso, no hay nada que devolver.`);
-  const ke=parseInt($('#ke').value);
-  if(isNaN(ke))return msg('#im','Indica los kilómetros finales.');
-  if(ke<l.kmStart)return msg('#im',`Los km finales no pueden ser menores que los iniciales (${l.kmStart}).`);
-  const url=S.photo?await Service.uploadPhoto(S.photo):'';
-  await Service.update('logs',l.id,{end:nowISO(),kmEnd:ke,km:ke-l.kmStart,fuel:S.fuel,notes:$('#nt').value.trim(),photo:url});
-  toast(`✅ ${VEH[S.veh].n} devuelto. Recorridos: ${ke-l.kmStart} km`);renderStatus();viewLlaves();
+  const ke=parseInt($('#ke').value);if(isNaN(ke))throw new Error('Indica los kilómetros finales.');
+  const r=await post({a:'checkin',veh:S.veh,kmEnd:ke,fuel:S.fuel,notes:$('#nt').value,photo:S.photo,now:iso()});
+  toast(`✅ ${VEH[S.veh].n} devuelto. Recorridos: ${r.km} km`);await refresh();
 }
 
-/* ---- Historial ---- */
-async function viewHistorial(){
-  const logs=(await Service.getAll('logs')).sort((a,b)=>b.out.localeCompare(a.out));const names=await Service.getNames();
-  $('#view').innerHTML=`<div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button>
-  <div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Foto</th></tr>
-  ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${l.fuel}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${l.photo?`<img class="th" src="${l.photo}" onclick="window.open(this.src)">`:''}</td></tr>`).join('')}</table></div></div>
-  <div class="card"><h2 style="margin-top:0">Empleados</h2><small style="color:var(--m)">Uno por línea.</small><textarea id="nl" rows="5">${esc(names.join('\n'))}</textarea>
-  <button class="btn" onclick="saveNames()">Guardar lista</button>
-  <button class="btn o" onclick="if(confirm('¿Restablecer los datos de ejemplo? Se borrará todo.')){Service.reset().then(()=>{renderStatus();viewHistorial()})}">Restablecer datos de ejemplo</button></div>`;
+/* ===== Admin (PIN verificado en el servidor) ===== */
+function viewAdmin(){
+  if(!PIN){$('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">🔒 Acceso de administrador</h2><label>PIN</label><input type="password" id="pin" inputmode="numeric" autocomplete="off"><div id="am"></div><button class="btn" onclick="run(this,'#am',login)">Entrar</button></div>`;return}
+  const logs=[...D.logs].sort((a,b)=>b.out.localeCompare(a.out)),open=logs.filter(l=>!l.end);
+  $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coches en uso</h2>${open.length?open.map(l=>`<div class="it"><div><b>${VEH[l.veh].i} ${VEH[l.veh].n} · ${esc(l.name)}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small></div><button class="btn s" onclick="openEdit('${l.id}')">Gestionar / forzar devolución</button></div>`).join(''):'<small>Todos los coches están disponibles.</small>'}</div>
+  <h2>Reservas</h2><div class="card">${resItems()}</div>
+  <h2>Historial</h2><div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button><div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Foto</th><th></th></tr>
+  ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${esc(l.fuel)}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${l.photo?`<img class="th" src="${esc(l.photo)}" onclick="window.open(this.src)">`:''}</td><td><button class="btn s" style="background:var(--bg);color:var(--p)" onclick="openEdit('${l.id}')">✏️</button></td></tr>`).join('')}</table></div></div>
+  <h2>Empleados</h2><div class="card"><small style="color:var(--m)">Uno por línea. Solo estos nombres aparecen en la app.</small><textarea id="nl" rows="7">${esc(D.names.join('\n'))}</textarea><div id="nm2"></div><button class="btn" onclick="run(this,'#nm2',saveNames)">Guardar lista</button></div>
+  <button class="btn o" onclick="PIN='';try{sessionStorage.removeItem('pin')}catch(e){};viewAdmin()">Cerrar sesión de administrador</button>`;
 }
-async function saveNames(){const n=$('#nl').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!n.length)return toast('Añade al menos un nombre');await Service.setNames(n);toast('✅ Lista de empleados guardada')}
-async function exportCSV(){
-  const logs=(await Service.getAll('logs')).sort((a,b)=>a.out.localeCompare(b.out));
+async function login(){const p=$('#pin').value.trim();if(!p)throw new Error('Escribe el PIN.');await post({a:'login',pin:p});PIN=p;try{sessionStorage.setItem('pin',p)}catch(e){}viewAdmin()}
+async function saveNames(){const n=$('#nl').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!n.length)throw new Error('Añade al menos un nombre.');await admin({a:'setNames',names:n});toast('✅ Lista de empleados guardada');await refresh()}
+function openEdit(id){
+  const l=D.logs.find(x=>x.id===id);if(!l)return;
+  $('#dlg').innerHTML=`<h2 style="margin-top:0">Editar registro</h2><small>${VEH[l.veh].n} · ${fmt(l.out)}${l.end?' → '+fmt(l.end):' · en uso'}</small>
+  <label>Empleado</label><input id="en" list="nl2" value="${esc(l.name)}"><datalist id="nl2">${D.names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+  <div class="row"><div><label>Km iniciales</label><input id="e1" type="number" value="${l.kmStart??''}"></div><div><label>Km finales</label><input id="e2" type="number" value="${l.kmEnd??''}"></div></div>
+  <label>Combustible</label><select id="ef"><option value=""></option>${FUEL.map(f=>`<option ${f===l.fuel?'selected':''}>${f}</option>`).join('')}</select>
+  <label>Incidencias</label><textarea id="et" rows="2">${esc(l.notes)}</textarea><div id="em"></div>
+  <button class="btn" onclick="saveEdit(this,'${id}')">Guardar cambios</button>
+  ${l.end?'':`<button class="btn g" onclick="forzar(this,'${id}')">La llave ya está: cerrar salida</button>`}
+  <button class="btn o d" onclick="borrarLog(this,'${id}')">Anular registro (borrar)</button>
+  <button class="btn o" onclick="$('#dlg').close()">Cancelar</button>`;
+  $('#dlg').showModal();
+}
+const done=async m=>{$('#dlg').close();toast(m);await refresh()};
+const saveEdit=(b,id)=>run(b,'#em',async()=>{await admin({a:'editLog',id,p:{name:$('#en').value,kmStart:$('#e1').value,kmEnd:$('#e2').value,fuel:$('#ef').value,notes:$('#et').value}});await done('✅ Registro actualizado')});
+const forzar=(b,id)=>run(b,'#em',async()=>{if(!confirm('¿Marcar la llave como devuelta? Los km finales se toman del campo "Km finales" (puede quedar vacío).'))return;await admin({a:'forceReturn',id,kmEnd:$('#e2').value,now:iso()});await done('✅ Salida cerrada por el administrador')});
+const borrarLog=(b,id)=>run(b,'#em',async()=>{if(!confirm('¿Anular y borrar este registro? No se puede deshacer.'))return;await admin({a:'deleteLog',id});await done('Registro anulado')});
+function exportCSV(){
   const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
-  const rows=[['Vehículo','Empleado','Salida','Devolución','Km iniciales','Km finales','Km recorridos','Combustible','Incidencias','Foto'],
-    ...logs.map(l=>[VEH[l.veh].n,l.name,l.out.replace('T',' '),l.end.replace('T',' '),l.kmStart,l.kmEnd,l.km,l.fuel,l.notes,l.photo?'Sí':'No'])];
-  const blob=new Blob(['\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`historial-vehiculos-${nowISO().slice(0,10)}.csv`;a.click();toast('✅ CSV exportado');
+  const rows=[['Vehículo','Empleado','Salida','Devolución','Km iniciales','Km finales','Km recorridos','Combustible','Incidencias','Foto'],...[...D.logs].sort((a,b)=>a.out.localeCompare(b.out)).map(l=>[VEH[l.veh].n,l.name,l.out.replace('T',' '),l.end.replace('T',' '),l.kmStart,l.kmEnd,l.km,l.fuel,l.notes,l.photo])];
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download=`historial-vehiculos-${iso().slice(0,10)}.csv`;a.click();toast('✅ CSV exportado');
 }
 
-/* ---- Navegación (QR: añade #llaves, #reservar o #historial al enlace) ---- */
-const views={reservar:viewReservar,llaves:viewLlaves,historial:viewHistorial};
-function go(t){S.tab=views[t]?t:'llaves';document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tab));views[S.tab]()}
-document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{location.hash=b.dataset.t});
+/* ===== Navegación (QR: #llaves, #reservar, #admin) ===== */
+const VIEWS={reservar:viewReservar,llaves:viewLlaves,admin:viewAdmin};
+async function go(t){
+  S.tab=VIEWS[t]?t:'llaves';S.onPick=null;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tab));
+  $('#view').innerHTML='<div class="card">Cargando…</div>';
+  try{await load();renderStatus();VIEWS[S.tab]()}
+  catch(e){$('#view').innerHTML=`<div class="card"><div class="msg e">⚠️ No se pudo conectar: ${esc(e.message)}</div><button class="btn" onclick="go(S.tab)">Reintentar</button></div>`}
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{location.hash===('#'+b.dataset.t)?go(b.dataset.t):location.hash=b.dataset.t});
 addEventListener('hashchange',()=>go(location.hash.slice(1)));
-Service.subscribe(()=>{renderStatus();if(S.tab==='historial')viewHistorial()});
-setInterval(()=>{if(API_URL&&!document.hidden)renderStatus()},30000);
-setInterval(renderStatus,60000);
-renderStatus();go(location.hash.slice(1));
+setInterval(()=>{if(!document.hidden&&!S.busy)load().then(renderStatus).catch(()=>{})},30000);
+go(location.hash.slice(1));
 </script></body></html>
