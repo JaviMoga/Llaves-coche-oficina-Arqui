@@ -97,10 +97,8 @@ function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';cl
 function msg(id,t,type='e'){$(id).innerHTML=`<div class="msg ${type==='e'?'e':'i'}">${t}</div>`}
 const vehBtns=(fn)=>`<div class="seg">${Object.entries(VEH).map(([k,v])=>`<button type="button" data-v="${k}" class="${S.veh===k?'on':''}" onclick="pick('${k}',${fn})">${v.i} ${v.n}</button>`).join('')}</div>`;
 function pick(v,fn){S.veh=v;document.querySelectorAll('.seg button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(fn)fn()}
-const nameSel=(names,sel)=>`<select id="nm" onchange="newName(this)">${names.map(n=>`<option ${n===sel?'selected':''}>${esc(n)}</option>`).join('')}<option value="__n">➕ Otro nombre…</option></select>`;
-async function newName(el){if(el.value!=='__n')return;const n=(prompt('Nombre del empleado:')||'').trim();if(!n){el.selectedIndex=0;return}
-  const names=await Service.getNames();if(!names.includes(n)){names.push(n);await Service.setNames(names)}
-  const o=new Option(n,n);el.add(o,el.options[el.options.length-1]);el.value=n}
+const nameSel=(names,sel)=>`<select id="nm"">${names.map(n=>`<option ${n===sel?'selected':''}>${esc(n)}</option>`).join('')};
+
 const openLog=(logs,v)=>logs.find(l=>l.veh===v&&!l.end);
 
 async function renderStatus(){
@@ -187,10 +185,7 @@ async function viewHistorial(){
   $('#view').innerHTML=`<div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button>
   <div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Foto</th></tr>
   ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${l.fuel}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${l.photo?`<img class="th" src="${l.photo}" onclick="window.open(this.src)">`:''}</td></tr>`).join('')}</table></div></div>
-  <div class="card"><h2 style="margin-top:0">Empleados</h2><small style="color:var(--m)">Uno por línea.</small><textarea id="nl" rows="5">${esc(names.join('\n'))}</textarea>
-  <button class="btn" onclick="saveNames()">Guardar lista</button>
-  <button class="btn o" onclick="if(confirm('¿Restablecer los datos de ejemplo? Se borrará todo.')){Service.reset().then(()=>{renderStatus();viewHistorial()})}">Restablecer datos de ejemplo</button></div>`;
-}
+  
 async function saveNames(){const n=$('#nl').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!n.length)return toast('Añade al menos un nombre');await Service.setNames(n);toast('✅ Lista de empleados guardada')}
 async function exportCSV(){
   const logs=(await Service.getAll('logs')).sort((a,b)=>a.out.localeCompare(b.out));
