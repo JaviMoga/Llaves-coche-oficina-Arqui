@@ -195,7 +195,7 @@ function pedirCancel(id){
   $('#cn').addEventListener('change',()=>{const own=$('#cn').value===r.name;
     $('#cmot').style.display=own?'none':'block';
     $('#cbtn').textContent=own?'Cancelar mi reserva':'Pedir cancelación al administrador';
-    $('#cinfo').textContent=own?'Es tu reserva: se cancela al momento y el coche queda libre.':`Esta reserva es de ${r.name}: solo puede cancelarla ${r.name} o el administrador. Se enviará tu petición al administrador por correo.`});
+    $('#cinfo').textContent=own?'Es tu reserva: se cancela al momento y el coche queda libre.':`Esta reserva es de ${r.name}: solo puede cancelarla ${r.name} o el administrador. Se abrirá tu correo con la petición ya escrita para el administrador.`});
   if(!$('#dlg').open)$('#dlg').showModal();
 }
 async function enviarCancel(id){
@@ -203,7 +203,12 @@ async function enviarCancel(id){
   if(r&&name===r.name){
     if(!confirm(`¿Cancelar tu reserva del ${VEH[r.veh].n} (${longDay(r.start.slice(0,10))}, ${rng(r)})?`))return;
     await post({a:'cancelOwn',id,name,epin});$('#dlg').close();toast('✅ Reserva cancelada');await refresh();
-  }else{await post({a:'askCancel',id,name,epin,reason:$('#cr').value});$('#dlg').close();toast('✅ Petición enviada al administrador por correo')}
+  }else{
+    /* Petición para la reserva de otra persona: se abre el correo del móvil con el mensaje ya escrito (como antes) */
+    const sub=`Cancelar reserva ${VEH[r.veh].n} - ${r.name} (${fmt(r.start)})`;
+    const body=`Hola Javier,\n\n${name} pide cancelar esta reserva:\n\nVehículo: ${VEH[r.veh].n}\nA nombre de: ${r.name}\nDesde: ${fmt(r.start)}\nHasta: ${fmt(r.end)}\nReferencia: ${r.id}${$('#cr').value.trim()?'\nMotivo: '+$('#cr').value.trim():''}\n\nGracias.`;
+    $('#dlg').close();location.href=`mailto:${ADMIN_MAIL}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+  }
 }
 
 /* ===== Reservar ===== */
