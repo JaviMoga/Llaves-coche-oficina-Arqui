@@ -97,7 +97,7 @@ function toIso(v,day){
 const NOPE=n=>/^¿?\s*qui[eé]n eres\s*\??$/i.test(String(n||'').trim());   /* «¿Quién eres?» nunca es un nombre válido */
 /* Hora oficial: la de Google. Si el reloj del móvil está mal (más de 2 min), la app usa la del servidor */
 let OFF=0;const NOW=()=>new Date(Date.now()+OFF);
-let A={logs:[],refuels:[],revisions:[],employees:[],holidays:[],noshows:[]};   /* datos del administrador: solo se descargan con el PIN */
+let A={logs:[],refuels:[],revisions:[],employees:[],holidays:[],noshows:[],cancelled:[]};   /* datos del administrador: solo se descargan con el PIN */
 const normLog=l=>{l.out=toIso(l.out);l.eta=toIso(l.eta);l.end=toIso(l.end);return l};
 const load=async(pub)=>{const j=await api(API_URL+'?t=all');D={logs:[],...j};
   const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(toIso(j.now));
@@ -106,7 +106,7 @@ const load=async(pub)=>{const j=await api(API_URL+'?t=all');D={logs:[],...j};
   D.reservations.forEach(r=>{r.start=toIso(r.start);r.end=toIso(r.end)});D.holidays=(D.holidays||[]).map(h=>({...h,date:toIso(h.date,true)}));
   D.logs.forEach(normLog);
   if(!pub&&S.tab==='admin'&&PIN){
-    try{A=await admin({a:'adminData'});A.logs.forEach(normLog);A.refuels.forEach(f=>{f.date=toIso(f.date)});A.revisions.forEach(r=>{r.date=toIso(r.date,true);r.done=toIso(r.done,true)});A.employees=A.employees||[];A.holidays=(A.holidays||[]).map(h=>({...h,date:toIso(h.date,true)}));A.noshows=(A.noshows||[]).map(r=>({...r,start:toIso(r.start),end:toIso(r.end)}))}
+    try{A=await admin({a:'adminData'});A.logs.forEach(normLog);A.refuels.forEach(f=>{f.date=toIso(f.date)});A.revisions.forEach(r=>{r.date=toIso(r.date,true);r.done=toIso(r.done,true)});A.employees=A.employees||[];A.holidays=(A.holidays||[]).map(h=>({...h,date:toIso(h.date,true)}));A.noshows=(A.noshows||[]).map(r=>({...r,start:toIso(r.start),end:toIso(r.end)}));A.cancelled=(A.cancelled||[]).map(r=>({...r,start:toIso(r.start),end:toIso(r.end)}))}
     catch(e){if(/PIN incorrecto|intentos/.test(e.message)){PIN='';try{sessionStorage.removeItem('pin')}catch(x){}toast('⚠️ '+e.message)}else throw e}}
 };
 
@@ -182,17 +182,29 @@ function renderStatus(){
 const resItems=()=>{const now=iso(),res=D.reservations.filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
   return res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div><button class="btn s" onclick="act({a:'cancelRes',id:'${r.id}'},'Reserva cancelada','¿Cancelar esta reserva?')">Cancelar</button></div>`).join(''):'<small>No hay reservas.</small>'};
 /* Petición de cancelación: la envía Google por correo al administrador (no hace falta app de correo) */
+/* Cancelar: la persona de la reserva la cancela ella misma (con su PIN). Si es de otra persona, se pide al administrador por correo. */
 function pedirCancel(id){
   const r=D.reservations.find(x=>x.id===id);if(!r)return;
-  $('#dlg').innerHTML=`<h2 style="margin-top:0">✉️ Pedir cancelación</h2>
+  $('#dlg').innerHTML=`<h2 style="margin-top:0">✖️ Cancelar reserva</h2>
   <div class="ag ${r.veh}"><div><b>${rng(r)}</b><small>${longDay(r.start.slice(0,10))} · ${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</small></div></div>
-  <label>¿Quién lo pide?</label>${nameSel('cn')}
-  <label>Motivo (opcional)</label><textarea id="cr" rows="2" maxlength="300" placeholder="Ya no necesito el coche, cambio de hora…"></textarea>
-  <div id="cm"></div><button class="btn" onclick="run(this,'#cm',()=>enviarCancel('${id}'))">Enviar al administrador</button>
+  <label>¿Quién eres?</label>${nameSel('cn')}
+  <small class="hint" id="cinfo">Si es tu reserva, la cancelas tú al momento. Si es de otra persona, se envía la petición al administrador.</small>
+  <div id="cmot" style="display:none"><label>Motivo (opcional)</label><textarea id="cr" rows="2" maxlength="300" placeholder="Necesito el coche, cambio de hora…"></textarea></div>
+  <div id="cm"></div><button class="btn" id="cbtn" onclick="run(this,'#cm',()=>enviarCancel('${id}'))">Cancelar reserva</button>
   <button class="btn o" onclick="$('#dlg').close()">Cerrar</button>`;
+  $('#cn').addEventListener('change',()=>{const own=$('#cn').value===r.name;
+    $('#cmot').style.display=own?'none':'block';
+    $('#cbtn').textContent=own?'Cancelar mi reserva':'Pedir cancelación al administrador';
+    $('#cinfo').textContent=own?'Es tu reserva: se cancela al momento y el coche queda libre.':`Esta reserva es de ${r.name}: solo puede cancelarla ${r.name} o el administrador. Se enviará tu petición al administrador por correo.`});
   if(!$('#dlg').open)$('#dlg').showModal();
 }
-async function enviarCancel(id){const {name,epin}=auth('cn');await post({a:'askCancel',id,name,epin,reason:$('#cr').value});$('#dlg').close();toast('✅ Petición enviada al administrador por correo')}
+async function enviarCancel(id){
+  const r=D.reservations.find(x=>x.id===id),{name,epin}=auth('cn');
+  if(r&&name===r.name){
+    if(!confirm(`¿Cancelar tu reserva del ${VEH[r.veh].n} (${longDay(r.start.slice(0,10))}, ${rng(r)})?`))return;
+    await post({a:'cancelOwn',id,name,epin});$('#dlg').close();toast('✅ Reserva cancelada');await refresh();
+  }else{await post({a:'askCancel',id,name,epin,reason:$('#cr').value});$('#dlg').close();toast('✅ Petición enviada al administrador por correo')}
+}
 
 /* ===== Reservar ===== */
 const MAXD=14;
@@ -238,14 +250,14 @@ function agenda(){
   rs.forEach(r=>{const day=r.start.slice(0,10)<t?t:r.start.slice(0,10),cur=r.start<=now;
     if(day!==last){h+=`<div class="agd">${day===t?'Hoy · ':''}${longDay(day)}</div>`;last=day}
     const u=openLog(r.veh),wait=u&&u.name!==r.name&&(!u.eta||u.eta<now||u.eta>r.start);
-    h+=`<div class="ag ${r.veh}"><div><b>${rng(r)}</b>${cur?' <span class="tag red">En curso</span>':''}${wait?` <span class="tag org">⚠️ El coche aún no ha vuelto${u.eta&&u.eta>=now?' (vuelve '+(u.eta.slice(0,10)===now.slice(0,10)?'a las '+u.eta.slice(11):fmt(u.eta))+')':''}</span>`:''}<small>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</small></div><button class="btn s m" onclick="pedirCancel('${r.id}')">✉️ Cancelar</button></div>`});
-  return h+'<small class="hint">«✉️ Cancelar» envía la petición al administrador por correo.</small>';
+    h+=`<div class="ag ${r.veh}"><div><b>${rng(r)}</b>${cur?' <span class="tag red">En curso</span>':''}${wait?` <span class="tag org">⚠️ El coche aún no ha vuelto${u.eta&&u.eta>=now?' (vuelve '+(u.eta.slice(0,10)===now.slice(0,10)?'a las '+u.eta.slice(11):fmt(u.eta))+')':''}</span>`:''}<small>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</small></div><button class="btn s m" onclick="pedirCancel('${r.id}')">✖️ Cancelar</button></div>`});
+  return h+'<small class="hint">«✖️ Cancelar»: si es tu reserva, la cancelas tú con tu PIN. Si es de otra persona, se pide al administrador.</small>';
 }
 function showRes(id){
   const r=D.reservations.find(x=>x.id===id);if(!r)return;
   $('#dlg').innerHTML=`<h2 style="margin-top:0">${VEH[r.veh].i} ${VEH[r.veh].n}</h2>
   <div class="ag ${r.veh}"><div><b>${esc(r.name)}</b><small>Desde ${longDay(r.start.slice(0,10))}, ${r.start.slice(11)}</small><small>Hasta ${longDay(r.end.slice(0,10))}, ${r.end.slice(11)}</small></div></div>
-  ${r.end>iso()?`<button class="btn o" onclick="pedirCancel('${r.id}')">✉️ Pedir cancelación al administrador</button>`:''}
+  ${r.end>iso()?`<button class="btn o" onclick="pedirCancel('${r.id}')">✖️ Cancelar reserva</button>`:''}
   <button class="btn" onclick="$('#dlg').close()">Cerrar</button>`;
   $('#dlg').showModal();
 }
@@ -423,6 +435,7 @@ function viewAdmin(){
   <small class="hint">Te llegará un correo a ${ADMIN_MAIL} 15 días antes y otro 1 día antes.</small>
   <button class="btn o" onclick="run(this,'#rvm',testMail)">✉️ Enviar correo de prueba</button></div></div>
   <h2>Reservas</h2><div class="card">${resItems()}${A.noshows.length?`<div style="border-top:1px solid var(--b);margin-top:8px;padding-top:8px"><b>🚫 No se presentaron (últimos 30 días)</b><small class="hint">Reservas liberadas solas porque nadie cogió la llave en los 30 minutos siguientes al inicio.</small>${[...A.noshows].sort((a,b)=>b.start.localeCompare(a.start)).map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div></div>`).join('')}</div>`:''}</div>
+  ${A.cancelled.length?`<div class="card"><b>✖️ Canceladas por el propio empleado (últimos 30 días)</b>${[...A.cancelled].sort((a,b)=>b.start.localeCompare(a.start)).map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div></div>`).join('')}</div>`:''}
   <h2>🎉 Festivos</h2><div class="card"><small class="hint" style="margin-top:0">Esos días no se puede reservar ni coger la llave.</small>${[...A.holidays].filter(h=>h.date>=ymd(NOW())).sort((a,b)=>a.date.localeCompare(b.date)).map(h=>`<div class="it"><div><b>${dm(h.date)}</b><small>${esc(h.name)}</small></div><button class="btn s" onclick="act({a:'delHoliday',date:'${h.date}'},'Festivo quitado','¿Quitar este festivo?')">🗑</button></div>`).join('')||'<small>No hay festivos próximos.</small>'}
   <div class="row"><div><label>Fecha</label><input type="date" id="hd" min="${ymd(NOW())}"></div><div><label>Nombre</label><input id="hn" maxlength="60" placeholder="Fiesta local…"></div></div>
   <div id="hm"></div><button class="btn" onclick="run(this,'#hm',addHol)">Añadir festivo</button></div>
