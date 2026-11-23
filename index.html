@@ -13,6 +13,7 @@ h1{font-size:1.3rem;margin:6px 4px 12px}h2{font-size:1.05rem;margin:18px 4px 8px
 .st{display:flex;gap:12px;align-items:center;border-left:8px solid;border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
 .st.ok{background:var(--okb);border-color:var(--ok)}.st.rs{background:var(--rsb);border-color:var(--rs)}.st.rs>div>b{color:var(--rs)}
 .seg button.rsv{border-color:var(--rs);background:var(--rsb);color:var(--rs)}.seg button small{display:block;font-size:.72rem;font-weight:700;margin-top:2px}
+.ch.use{background:#b91c1c;cursor:default}.tag.org{background:var(--rsb);color:var(--rs)}
 .fu{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.85rem}.fg{display:inline-flex;gap:2px}.fg i{width:13px;height:9px;border-radius:2px;background:var(--b)}.fg i.on{background:var(--ok)}.fg.low i.on{background:var(--ko)}.fg.mid i.on{background:#d97706}.st.ko{background:var(--kob);border-color:var(--ko)}
 .st b{font-size:1.05rem}.st small{display:block;color:var(--m)}.st .ic{font-size:1.8rem}
 .tag{display:inline-block;background:#fde68a;color:#78350f;border-radius:8px;padding:2px 8px;font-size:.8rem;font-weight:700;margin-top:4px}
@@ -150,8 +151,8 @@ function renderStatus(){
   const now=iso();
   $('#status').innerHTML=Object.entries(VEH).map(([k,v])=>{
     const l=openLog(k);
-    if(l){const late=(l.eta&&l.eta<now)||NOW()-new Date(l.out)>12*36e5;
-      return `<div class="st ko"><span class="ic">🔴</span><div><b>${v.n}: En uso por ${esc(l.name)}${l.eta?` hasta las ${hm(l.eta)}`:''}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small>${fuelHTML(k,1)}${late?'<span class="tag">⏰ Pendiente de devolver</span>':''}</div></div>`}
+    if(l){const lm=l.eta&&l.eta<now?Math.round((NOW()-isoOf(l.eta))/6e4):0,until=l.eta?(l.eta.slice(0,10)===now.slice(0,10)?`hasta las ${l.eta.slice(11)}`:`hasta el ${fmt(l.eta)}`):'';
+      return `<div class="st ko"><span class="ic">🔴</span><div><b>${v.n}: En uso por ${esc(l.name)} ${until}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small>${fuelHTML(k,1)}${lm?`<span class="tag red">⏰ Retrasado ${lm<60?lm+' min':Math.floor(lm/60)+' h '+(lm%60)+' min'}</span>`:''}<div style="margin-top:8px"><button class="btn s m" onclick="openExt('${k}')">⏱️ ${l.eta?'Ampliar devolución':'Indicar devolución'}</button></div></div></div>`}
     const c=curRes(k);
     if(c)return `<div class="st rs"><span class="ic">🟠</span><div><b>${v.n}: Reservado por ${esc(c.name)}</b><small>Ahora, hasta ${c.end.slice(0,10)===now.slice(0,10)?'las '+c.end.slice(11):fmt(c.end)} · solo puede cogerlo ${esc(c.name)}</small>${fuelHTML(k)}</div></div>`;
     const nx=D.reservations.filter(r=>r.veh===k&&r.end>now).sort((a,b)=>a.start.localeCompare(b.start))[0];
@@ -187,6 +188,8 @@ function firstOk(){let s=ymd(NOW());while(!okDay(s))s=addD(s,1);return s}
 /* Cada reserva se ve en su día como en Google Calendar: vehículo (G/D + color), hora y persona */
 /* Cada reserva se ve en su día como en Google Calendar: vehículo (G/D + color) y hora; debajo, la persona */
 const chip=(r,s)=>`<span class="ch ${r.veh}" onclick="event.stopPropagation();showRes('${r.id}')"><b>${VEH[r.veh].l} ${r.start.slice(0,10)===s?r.start.slice(11):'···'}</b><br>${esc(r.name.split(' ')[0])}</span>`;
+/* Coche en uso: se ve en el calendario hasta su devolución prevista */
+const useChips=(s,t)=>D.logs.filter(l=>!l.end&&l.out.slice(0,10)<=s&&s<=((l.eta&&l.eta.slice(0,10)>t?l.eta:t+'T23:59').slice(0,10))).map(l=>`<span class="ch use"><b>${VEH[l.veh].l} 🔑→${l.eta&&l.eta.slice(0,10)===s?l.eta.slice(11):'···'}</b><br>${esc(l.name.split(' ')[0])}</span>`).join('');
 const dd=(a,b)=>Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5);
 const mon=s=>addD(s,-((wk(s)+6)%7));
 const sh=s=>new Date(s+'T12:00').toLocaleDateString('es-ES',{day:'numeric',month:'short'}).replace('.','');
@@ -197,8 +200,8 @@ function calHTML(){
   if(S.wo<0)h+=`<div style="text-align:center;margin-bottom:8px"><button class="btn s m" onclick="S.wo=0;drawCal()">Volver a hoy</button></div>`;
   h+=`<div class="mg">${['Lun','Mar','Mié','Jue','Vie'].map(x=>`<i>${x}</i>`).join('')}`;
   for(let w=0;w<nW;w++)for(let i=0;i<5;i++){const s=addD(start,7*w+i),ok=okDay(s),rs=resOn(s),n=+s.slice(8);
-    h+=`<div class="mc ${s<t?'out':''} ${ok?'ok':''} ${s===t?'tod':''} ${s===S.sel?'sel':''}" ${ok?`onclick="selDay('${s}')"`:''}><span class="n">${n===1||(w===0&&i===0)?sh(s):n}</span>${rs.slice(0,3).map(r=>chip(r,s)).join('')}${rs.length>3?`<span class="more">+${rs.length-3} más</span>`:''}</div>`}
-  return h+`</div><div class="leg"><em class="gasolina"></em>G = Gasolina<em class="diesel"></em>D = Diésel</div><small class="hint">Toca una reserva para ver el detalle, o un día libre para reservarlo. Se puede reservar hasta el ${dm(lim)}, de lunes a viernes.</small>`;
+    h+=`<div class="mc ${s<t?'out':''} ${ok?'ok':''} ${s===t?'tod':''} ${s===S.sel?'sel':''}" ${ok?`onclick="selDay('${s}')"`:''}><span class="n">${n===1||(w===0&&i===0)?sh(s):n}</span>${useChips(s,t)}${rs.slice(0,3).map(r=>chip(r,s)).join('')}${rs.length>3?`<span class="more">+${rs.length-3} más</span>`:''}</div>`}
+  return h+`</div><div class="leg"><em class="gasolina"></em>G = Gasolina<em class="diesel"></em>D = Diésel<em style="background:#b91c1c"></em>🔑 En uso</div><small class="hint">Toca una reserva para ver el detalle, o un día libre para reservarlo. Se puede reservar hasta el ${dm(lim)}, de lunes a viernes.</small>`;
 }
 /* Agenda: próximas reservas y las que están en curso, agrupadas por día */
 function agenda(){
@@ -207,7 +210,8 @@ function agenda(){
   let h='',last='';
   rs.forEach(r=>{const day=r.start.slice(0,10)<t?t:r.start.slice(0,10),cur=r.start<=now;
     if(day!==last){h+=`<div class="agd">${day===t?'Hoy · ':''}${longDay(day)}</div>`;last=day}
-    h+=`<div class="ag ${r.veh}"><div><b>${rng(r)}</b>${cur?' <span class="tag red">En curso</span>':''}<small>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</small></div><button class="btn s m" onclick="pedirCancel('${r.id}')">✉️ Cancelar</button></div>`});
+    const u=openLog(r.veh),wait=u&&u.name!==r.name&&(!u.eta||u.eta<now||u.eta>r.start);
+    h+=`<div class="ag ${r.veh}"><div><b>${rng(r)}</b>${cur?' <span class="tag red">En curso</span>':''}${wait?` <span class="tag org">⚠️ El coche aún no ha vuelto${u.eta&&u.eta>=now?' (vuelve '+(u.eta.slice(0,10)===now.slice(0,10)?'a las '+u.eta.slice(11):fmt(u.eta))+')':''}</span>`:''}<small>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</small></div><button class="btn s m" onclick="pedirCancel('${r.id}')">✉️ Cancelar</button></div>`});
   return h+'<small class="hint">«✉️ Cancelar» envía la petición al administrador por correo.</small>';
 }
 function showRes(id){
@@ -245,12 +249,13 @@ async function reservar(){
 
 /* ===== Llaves ===== */
 function viewLlaves(){
-  S.fuel='1/2';P.ret=[];S.onPick=()=>{prefill();prefillIn()};
+  S.fuel='1/2';P.ret=[];S.onPick=()=>{prefill();prefillIn();prefillEta()};
   if(blockFor(S.veh)){const o=Object.keys(VEH).find(k=>!blockFor(k));if(o)S.veh=o}   /* si el elegido está reservado, se pasa al otro */
   $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coger llave</h2>
   <label>Vehículo</label><div id="vsel">${vehBtns(1)}</div><label>Empleado</label>${nameSel()}
   <label>Kilómetros iniciales</label><input type="number" id="ks" inputmode="numeric" min="0">
-  <label>Devolución estimada (opcional)</label><input type="time" id="eta">
+  <label>Devolución prevista *</label><input type="datetime-local" id="eta" required>
+  <small class="hint" id="etah"></small>
   <div id="om"></div><button class="btn g" onclick="run(this,'#om',coger)">Coger llave ahora</button></div>
   <div class="card"><h2 style="margin-top:0">Devolver llave</h2>
   <label>¿Quién devuelve la llave?</label>${nameSel('dn')}
@@ -261,8 +266,19 @@ function viewLlaves(){
   <label>Incidencias (opcional)</label><textarea id="nt" rows="2" placeholder="Golpe, aviso en el cuadro, limpieza…"></textarea>
   <label>Fotos de desperfectos (opcional, hasta ${MAX.ret})</label>${photoPicker('ret')}
   <div id="im"></div><button class="btn r" onclick="run(this,'#im',devolver)">Devolver llave ahora</button></div>`;
-  $('#nm').addEventListener('change',()=>{lockVeh();if($('#om'))$('#om').innerHTML=''});
-  prefill();prefillIn();
+  $('#nm').addEventListener('change',()=>{lockVeh();prefillEta();if($('#om'))$('#om').innerHTML=''});
+  prefill();prefillIn();prefillEta();
+}
+/* Devolución prevista: si tienes reserva, su hora de fin; si no, dentro de 1 hora (redondeado). Nunca después de la reserva de otro */
+const isoOf=s=>{const m=s.match(/\d+/g).map(Number);return new Date(m[0],m[1]-1,m[2],m[3],m[4])};
+const nextOther=(v,name,from)=>D.reservations.filter(r=>r.veh===v&&r.name!==name&&r.end>from).sort((a,b)=>a.start.localeCompare(b.start))[0];
+function prefillEta(){
+  const e=$('#eta');if(!e)return;const now=iso(),name=$('#nm').value,lim=addD(now.slice(0,10),MAXD)+'T23:59';
+  const mine=D.reservations.find(r=>r.veh===S.veh&&r.name===name&&r.start<=iso(new Date(NOW().getTime()+36e5))&&r.end>now);
+  let d=new Date(NOW().getTime()+36e5);d.setMinutes(Math.ceil(d.getMinutes()/15)*15,0,0);let eta=mine?mine.end:iso(d);
+  const o=nextOther(S.veh,name,now);if(o&&o.start>now&&o.start<eta)eta=o.start;
+  e.min=now;e.max=lim;e.value=eta;
+  $('#etah').textContent=o&&o.start>now?`Antes de ${o.start.slice(0,10)===now.slice(0,10)?'las '+o.start.slice(11):fdt(o.start)}: a esa hora lo tiene reservado ${o.name}.`:mine?'Hora de fin de tu reserva. Cámbiala si vas a tardar más o menos.':'Cámbiala si vas a tardar más. Luego podrás ampliarla desde la tarjeta de arriba.';
 }
 function prefill(){const l=D.logs.filter(l=>l.veh===S.veh&&l.kmEnd!=null).sort((a,b)=>b.end.localeCompare(a.end))[0];if($('#ks'))$('#ks').value=l?l.kmEnd:''}
 function prefillIn(){const l=openLog(S.veh),e=$('#kmc');if(e)e.textContent=l?`${VEH[S.veh].n}: salió con ${l.kmStart} km a las ${hm(l.out)} (${l.name})`:`${VEH[S.veh].n} no está en uso ahora mismo.`}
@@ -283,7 +299,9 @@ async function coger(){
   const name=getName('nm'),ks=parseInt($('#ks').value),now=iso();
   if(isNaN(ks))throw new Error('Indica los kilómetros iniciales.');
   const rc=blockFor(S.veh);if(rc)throw new Error(resMsg(S.veh,rc).slice(3));
-  const t=$('#eta').value;let eta=t?`${now.slice(0,10)}T${t}`:'';if(eta&&eta<=now)eta='';
+  const eta=$('#eta').value.slice(0,16);
+  if(!eta)throw new Error('Indica la hora de devolución prevista.');
+  if(eta<=now)throw new Error('La devolución prevista tiene que ser posterior a ahora.');
   await post({a:'checkout',veh:S.veh,name,kmStart:ks,eta});   /* el servidor no deja cogerlo si está reservado por otra persona */
   toast(`✅ ${VEH[S.veh].n} en uso a nombre de ${name}. ¡Buen viaje!`);await refresh();
 }
@@ -295,6 +313,28 @@ async function devolver(){
   const r=await post({a:'checkin',veh:S.veh,name,kmEnd:ke,fuel:S.fuel,notes:$('#nt').value,photos:P.ret});
   toast(`✅ ${VEH[S.veh].n} devuelto. Recorridos: ${r.km} km`);await refresh();
 }
+/* ===== Ampliar (o cambiar) la devolución prevista: solo quien tiene el coche y sin pisar reservas de otros ===== */
+function openExt(v){
+  const l=openLog(v);if(!l)return;const now=iso(),o=nextOther(v,l.name,now);
+  let d=new Date(Math.max(NOW().getTime(),l.eta?isoOf(l.eta).getTime():0)+36e5);d.setMinutes(Math.ceil(d.getMinutes()/15)*15,0,0);
+  let def=iso(d);if(o&&o.start>now&&o.start<def)def=o.start;
+  $('#dlg').innerHTML=`<h2 style="margin-top:0">⏱️ ${l.eta?'Ampliar devolución':'Indicar devolución'}</h2>
+  <div class="ag ${v}"><div><b>${VEH[v].i} ${VEH[v].n} · ${esc(l.name)}</b><small>Desde ${fmt(l.out)}${l.eta?' · prevista: '+fmt(l.eta):''}</small></div></div>
+  <label>¿Quién eres?</label>${nameSel('xn')}<small class="hint">Solo puede cambiarla ${esc(l.name)}, que es quien tiene el coche.</small>
+  <label>Nueva hora de devolución</label><input type="datetime-local" id="xe" value="${def}" min="${now}" max="${addD(now.slice(0,10),MAXD)}T23:59">
+  ${o&&o.start>now?`<small class="hint">⚠️ ${esc(o.name)} lo tiene reservado ${o.start.slice(0,10)===now.slice(0,10)?'a las '+o.start.slice(11):'el '+fdt(o.start)}: no puedes pasar de esa hora.</small>`:''}
+  <div id="xm"></div><button class="btn" onclick="run(this,'#xm',ampliar)">Guardar nueva hora</button>
+  <button class="btn o" onclick="$('#dlg').close()">Cancelar</button>`;
+  $('#dlg').dataset.v=v;if(!$('#dlg').open)$('#dlg').showModal();
+}
+async function ampliar(){
+  const v=$('#dlg').dataset.v,name=getName('xn'),eta=$('#xe').value.slice(0,16),l=openLog(v);
+  if(!eta)throw new Error('Indica la nueva hora.');if(eta<=iso())throw new Error('La nueva hora tiene que ser posterior a ahora.');
+  if(l&&name!==l.name)throw new Error(`Solo puede cambiarla ${l.name}, que es quien tiene el coche.`);
+  await post({a:'extend',veh:v,name,eta});$('#dlg').close();toast(`✅ Devolución prevista: ${fmt(eta)}`);
+  await load();renderStatus();if(S.tab!=='llaves')VIEWS[S.tab]();
+}
+
 /* ===== Repostaje: nombre, fecha, vehículo y foto del ticket ===== */
 function openFuel(){
   P.tk=[];
