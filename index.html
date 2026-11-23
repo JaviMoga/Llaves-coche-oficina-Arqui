@@ -35,10 +35,10 @@ nav button{flex:1;padding:12px 4px;border:0;background:none;color:var(--m);font:
 /* Calendario tipo Google (lunes a viernes) */
 .calh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.calh button{width:44px;height:40px;border:0;border-radius:10px;background:var(--bg);color:var(--t);font-size:1.3rem}.calh b{text-transform:capitalize}
 .mg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}.mg>i{font-style:normal;color:var(--m);font-size:.75rem;text-align:center;padding:2px 0}
-.mc{min-height:84px;background:var(--bg);border:2px solid transparent;border-radius:8px;padding:3px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.mc{min-height:96px;background:var(--bg);border:2px solid transparent;border-radius:8px;padding:3px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
 .mc .n{font-size:.78rem;font-weight:700;padding:0 2px}.mc.out{opacity:.4}.mc:not(.ok) .n{color:var(--m)}.mc.ok{cursor:pointer}
-.mc.tod .n{background:var(--p);color:#fff;border-radius:10px;width:22px;text-align:center}.mc.sel{border-color:var(--p)}
-.ch{display:block;font-size:.66rem;line-height:1.25;padding:2px 3px;border-radius:4px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.mc.tod .n{background:var(--p);color:#fff;border-radius:10px;padding:0 6px;align-self:flex-start}.mc.sel{border-color:var(--p)}
+.ch{display:block;font-size:.68rem;line-height:1.2;padding:2px 3px;border-radius:4px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .ch.gasolina{background:var(--vg)}.ch.diesel{background:var(--vd)}.ch b{opacity:.85}.more{font-size:.66rem;color:var(--m);padding:0 2px}
 .leg{margin-top:8px;font-size:.8rem;color:var(--m)}.leg em{display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 4px 0 8px;vertical-align:-1px}
 em.gasolina{background:var(--vg)}em.diesel{background:var(--vd)}
@@ -84,22 +84,29 @@ function toIso(v,day){
   return day?m[1]:`${m[1]}T${m[2]||'00:00'}`;
 }
 const NOPE=n=>/^¿?\s*qui[eé]n eres\s*\??$/i.test(String(n||'').trim());   /* «¿Quién eres?» nunca es un nombre válido */
-const load=async()=>{const j=await api(API_URL+'?t=all');D={refuels:[],revisions:[],...j};
+/* Hora oficial: la de Google. Si el reloj del móvil está mal (más de 2 min), la app usa la del servidor */
+let OFF=0;const NOW=()=>new Date(Date.now()+OFF);
+let A={logs:[],refuels:[],revisions:[]};   /* datos del administrador: solo se descargan con el PIN */
+const normLog=l=>{l.out=toIso(l.out);l.eta=toIso(l.eta);l.end=toIso(l.end);return l};
+const load=async(pub)=>{const j=await api(API_URL+'?t=all');D={logs:[],...j};
+  const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(toIso(j.now));
+  if(m){const o=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5])-Date.now();OFF=Math.abs(o)>12e4?o:0}
   D.names=D.names.filter(n=>!NOPE(n));
   D.reservations.forEach(r=>{r.start=toIso(r.start);r.end=toIso(r.end)});
-  D.logs.forEach(l=>{l.out=toIso(l.out);l.eta=toIso(l.eta);l.end=toIso(l.end)});
-  D.refuels.forEach(f=>{f.date=toIso(f.date)});
-  D.revisions.forEach(r=>{r.date=toIso(r.date,true);r.done=toIso(r.done,true)});
+  D.logs.forEach(normLog);
+  if(!pub&&S.tab==='admin'&&PIN){
+    try{A=await admin({a:'adminData'});A.logs.forEach(normLog);A.refuels.forEach(f=>{f.date=toIso(f.date)});A.revisions.forEach(r=>{r.date=toIso(r.date,true);r.done=toIso(r.done,true)})}
+    catch(e){if(/PIN incorrecto|intentos/.test(e.message)){PIN='';try{sessionStorage.removeItem('pin')}catch(x){}toast('⚠️ '+e.message)}else throw e}}
 };
 
 /* ===== utilidades ===== */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const p2=n=>String(n).padStart(2,'0');
-const iso=(d=new Date())=>`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+const iso=(d=NOW())=>`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
 const fmt=d=>new Date(d).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const hm=d=>new Date(d).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-const S={tab:'llaves',veh:'gasolina',fuel:'1/2',busy:false,onPick:null,sel:'',cy:0,cm:0};
+const S={tab:'llaves',veh:'gasolina',fuel:'1/2',busy:false,onPick:null,sel:'',wo:0};
 const P={ret:[],edit:[],tk:[],rep:null};
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
 const msg=(id,t)=>{$(id).innerHTML=`<div class="msg e">${t}</div>`};
@@ -123,43 +130,52 @@ function renderStatus(){
   const now=iso();
   $('#status').innerHTML=Object.entries(VEH).map(([k,v])=>{
     const l=openLog(k);
-    if(l){const late=(l.eta&&l.eta<now)||Date.now()-new Date(l.out)>12*36e5;
+    if(l){const late=(l.eta&&l.eta<now)||NOW()-new Date(l.out)>12*36e5;
       return `<div class="st ko"><span class="ic">🔴</span><div><b>${v.n}: En uso por ${esc(l.name)}${l.eta?` hasta las ${hm(l.eta)}`:''}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small>${late?'<span class="tag">⏰ Pendiente de devolver</span>':''}</div></div>`}
     const nx=D.reservations.filter(r=>r.veh===k&&r.end>now).sort((a,b)=>a.start.localeCompare(b.start))[0];
     return `<div class="st ok"><span class="ic">🟢</span><div><b>${v.n}: Disponible</b><small>${nx?`Próxima reserva: ${esc(nx.name)}, ${fmt(nx.start)}`:'Sin reservas próximas'}</small></div></div>`}).join('');
 }
 const resItems=()=>{const now=iso(),res=D.reservations.filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
   return res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div><button class="btn s" onclick="act({a:'cancelRes',id:'${r.id}'},'Reserva cancelada','¿Cancelar esta reserva?')">Cancelar</button></div>`).join(''):'<small>No hay reservas.</small>'};
-/* Abre el correo del móvil con la petición de cancelación ya escrita */
+/* Petición de cancelación: la envía Google por correo al administrador (no hace falta app de correo) */
 function pedirCancel(id){
   const r=D.reservations.find(x=>x.id===id);if(!r)return;
-  const sub=`Cancelar reserva ${VEH[r.veh].n} - ${r.name} (${fmt(r.start)})`;
-  const body=`Hola Javier,\n\nPor favor, cancela esta reserva de vehículo:\n\nVehículo: ${VEH[r.veh].n}\nEmpleado: ${r.name}\nDesde: ${fmt(r.start)}\nHasta: ${fmt(r.end)}\nReferencia: ${r.id}\n\nGracias.`;
-  location.href=`mailto:${ADMIN_MAIL}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`;
+  $('#dlg').innerHTML=`<h2 style="margin-top:0">✉️ Pedir cancelación</h2>
+  <div class="ag ${r.veh}"><div><b>${rng(r)}</b><small>${longDay(r.start.slice(0,10))} · ${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</small></div></div>
+  <label>¿Quién lo pide?</label>${nameSel('cn')}
+  <label>Motivo (opcional)</label><textarea id="cr" rows="2" maxlength="300" placeholder="Ya no necesito el coche, cambio de hora…"></textarea>
+  <div id="cm"></div><button class="btn" onclick="run(this,'#cm',()=>enviarCancel('${id}'))">Enviar al administrador</button>
+  <button class="btn o" onclick="$('#dlg').close()">Cerrar</button>`;
+  if(!$('#dlg').open)$('#dlg').showModal();
 }
+async function enviarCancel(id){const name=getName('cn');await post({a:'askCancel',id,name,reason:$('#cr').value});$('#dlg').close();toast('✅ Petición enviada al administrador por correo')}
 
 /* ===== Reservar ===== */
 const MAXD=14;
 const ymd=d=>`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
 const addD=(s,n)=>{const [y,m,d]=s.split('-').map(Number);return ymd(new Date(y,m-1,d+n))};
 const wk=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).getDay()};
-const okDay=s=>{const t=ymd(new Date());return s>=t&&s<=addD(t,MAXD)&&wk(s)%6!==0};
+const okDay=s=>{const t=ymd(NOW());return s>=t&&s<=addD(t,MAXD)&&wk(s)%6!==0};
 const dm=s=>s.split('-').reverse().join('/');
 const longDay=s=>new Date(s+'T12:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
 const rng=r=>r.start.slice(0,10)===r.end.slice(0,10)?`${r.start.slice(11)} – ${r.end.slice(11)}`:`${fmt(r.start)} → ${fmt(r.end)}`;
 const resOn=s=>D.reservations.filter(r=>r.start.slice(0,10)<=s&&r.end.slice(0,10)>=s).sort((a,b)=>a.start.localeCompare(b.start));
-function firstOk(){let s=ymd(new Date());while(!okDay(s))s=addD(s,1);return s}
+function firstOk(){let s=ymd(NOW());while(!okDay(s))s=addD(s,1);return s}
 /* Cada reserva se ve en su día como en Google Calendar: vehículo (G/D + color), hora y persona */
-const chip=(r,s)=>`<span class="ch ${r.veh}" onclick="event.stopPropagation();showRes('${r.id}')"><b>${VEH[r.veh].l}</b> ${r.start.slice(0,10)===s?r.start.slice(11):'···'} ${esc(r.name.split(' ')[0])}</span>`;
+/* Cada reserva se ve en su día como en Google Calendar: vehículo (G/D + color) y hora; debajo, la persona */
+const chip=(r,s)=>`<span class="ch ${r.veh}" onclick="event.stopPropagation();showRes('${r.id}')"><b>${VEH[r.veh].l} ${r.start.slice(0,10)===s?r.start.slice(11):'···'}</b><br>${esc(r.name.split(' ')[0])}</span>`;
+const dd=(a,b)=>Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/864e5);
+const mon=s=>addD(s,-((wk(s)+6)%7));
+const sh=s=>new Date(s+'T12:00').toLocaleDateString('es-ES',{day:'numeric',month:'short'}).replace('.','');
+/* Se ve desde esta semana hasta la semana del último día reservable; con ‹ se ven semanas anteriores */
 function calHTML(){
-  const y=S.cy,m=S.cm,first=new Date(y,m,1),last=new Date(y,m+1,0),t=ymd(new Date());
-  const d=new Date(y,m,1-((first.getDay()+6)%7));
-  let h=`<div class="calh"><button onclick="calNav(-1)">‹</button><b>${first.toLocaleDateString('es-ES',{month:'long',year:'numeric'})}</b><button onclick="calNav(1)">›</button></div><div class="mg">${['Lun','Mar','Mié','Jue','Vie'].map(x=>`<i>${x}</i>`).join('')}`;
-  while(d<=last){for(let i=0;i<7;i++){const s=ymd(d),w=d.getDay();
-    if(w!==0&&w!==6){const ok=okDay(s),rs=resOn(s);
-      h+=`<div class="mc ${d.getMonth()===m?'':'out'} ${ok?'ok':''} ${s===t?'tod':''} ${s===S.sel?'sel':''}" ${ok?`onclick="selDay('${s}')"`:''}><span class="n">${d.getDate()}</span>${rs.slice(0,3).map(r=>chip(r,s)).join('')}${rs.length>3?`<span class="more">+${rs.length-3} más</span>`:''}</div>`}
-    d.setDate(d.getDate()+1)}}
-  return h+`</div><div class="leg"><em class="gasolina"></em>G = Gasolina<em class="diesel"></em>D = Diésel</div><small class="hint">Toca una reserva para ver el detalle, o un día libre para reservarlo. Los días en gris no se pueden reservar (más de ${MAXD} días vista). Fines de semana no disponibles.</small>`;
+  const t=ymd(NOW()),lim=addD(t,MAXD),nW=Math.floor(dd(mon(t),lim)/7)+1,start=addD(mon(t),7*S.wo),end=addD(start,7*nW-3);
+  let h=`<div class="calh"><button onclick="calNav(-1)" aria-label="Semana anterior">‹</button><b>${sh(start)} – ${sh(end)}</b><button onclick="calNav(1)" ${S.wo>=0?'disabled style="opacity:.3"':''} aria-label="Semana siguiente">›</button></div>`;
+  if(S.wo<0)h+=`<div style="text-align:center;margin-bottom:8px"><button class="btn s m" onclick="S.wo=0;drawCal()">Volver a hoy</button></div>`;
+  h+=`<div class="mg">${['Lun','Mar','Mié','Jue','Vie'].map(x=>`<i>${x}</i>`).join('')}`;
+  for(let w=0;w<nW;w++)for(let i=0;i<5;i++){const s=addD(start,7*w+i),ok=okDay(s),rs=resOn(s),n=+s.slice(8);
+    h+=`<div class="mc ${s<t?'out':''} ${ok?'ok':''} ${s===t?'tod':''} ${s===S.sel?'sel':''}" ${ok?`onclick="selDay('${s}')"`:''}><span class="n">${n===1||(w===0&&i===0)?sh(s):n}</span>${rs.slice(0,3).map(r=>chip(r,s)).join('')}${rs.length>3?`<span class="more">+${rs.length-3} más</span>`:''}</div>`}
+  return h+`</div><div class="leg"><em class="gasolina"></em>G = Gasolina<em class="diesel"></em>D = Diésel</div><small class="hint">Toca una reserva para ver el detalle, o un día libre para reservarlo. Se puede reservar hasta el ${dm(lim)}, de lunes a viernes.</small>`;
 }
 /* Agenda: próximas reservas y las que están en curso, agrupadas por día */
 function agenda(){
@@ -169,7 +185,7 @@ function agenda(){
   rs.forEach(r=>{const day=r.start.slice(0,10)<t?t:r.start.slice(0,10),cur=r.start<=now;
     if(day!==last){h+=`<div class="agd">${day===t?'Hoy · ':''}${longDay(day)}</div>`;last=day}
     h+=`<div class="ag ${r.veh}"><div><b>${rng(r)}</b>${cur?' <span class="tag red">En curso</span>':''}<small>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</small></div><button class="btn s m" onclick="pedirCancel('${r.id}')">✉️ Cancelar</button></div>`});
-  return h+'<small class="hint">«✉️ Cancelar» abre un correo al administrador con los datos de la reserva.</small>';
+  return h+'<small class="hint">«✉️ Cancelar» envía la petición al administrador por correo.</small>';
 }
 function showRes(id){
   const r=D.reservations.find(x=>x.id===id);if(!r)return;
@@ -180,11 +196,10 @@ function showRes(id){
   $('#dlg').showModal();
 }
 function drawCal(){$('#cal').innerHTML=calHTML()}
-function calNav(n){const d=new Date(S.cy,S.cm+n,1);S.cy=d.getFullYear();S.cm=d.getMonth();drawCal()}
-function selDay(s){S.sel=s;$('#rd').value=s;$('#rd2').value=s;drawCal();$('#nuevo').scrollIntoView({behavior:'smooth',block:'start'})}
+function calNav(n){S.wo=Math.min(0,Math.max(-8,S.wo+n));drawCal()}
+function selDay(s){S.wo=0;S.sel=s;$('#rd').value=s;$('#rd2').value=s;drawCal();$('#nuevo').scrollIntoView({behavior:'smooth',block:'start'})}
 function viewReservar(){
   const now=iso(),t=now.slice(0,10),lim=addD(t,MAXD);if(!S.sel||!okDay(S.sel))S.sel=firstOk();
-  const [y,m]=S.sel.split('-').map(Number);S.cy=y;S.cm=m-1;
   $('#view').innerHTML=`<div class="card"><div id="cal"></div></div>
   <div class="card"><h2 style="margin-top:0">Próximas reservas</h2>${agenda()}</div>
   <div class="card" id="nuevo"><h2 style="margin-top:0">Nueva reserva</h2><small style="color:var(--m)">Solo de lunes a viernes y hasta ${MAXD} días vista (hasta el ${dm(lim)}).</small>
@@ -195,13 +210,13 @@ function viewReservar(){
   drawCal();
 }
 async function reservar(){
-  const name=getName('nm'),d1=$('#rd').value,s=$('#rs').value,d2=$('#rd2').value,e=$('#re').value,t=ymd(new Date());
+  const name=getName('nm'),d1=$('#rd').value,s=$('#rs').value,d2=$('#rd2').value,e=$('#re').value,t=ymd(NOW());
   if(!d1||!s||!d2||!e)throw new Error('Completa los días y las horas.');
   if(d2<d1)throw new Error('El día de devolución no puede ser anterior al de inicio.');
   if(d1<t)throw new Error('No se puede reservar en una fecha pasada.');
   if(d2>addD(t,MAXD))throw new Error(`Solo se puede reservar hasta ${MAXD} días vista (hasta el ${dm(addD(t,MAXD))}).`);
   for(let x=d1;x<=d2;x=addD(x,1))if(wk(x)%6===0)throw new Error(`No se puede reservar en fin de semana (${dm(x)}).`);
-  await post({a:'reserve',veh:S.veh,name,start:`${d1}T${s}`,end:`${d2}T${e}`,now:iso()});
+  await post({a:'reserve',veh:S.veh,name,start:`${d1}T${s}`,end:`${d2}T${e}`});
   toast(`✅ Reservado: ${VEH[S.veh].n}, ${fmt(d1+'T'+s)}`);await refresh();
 }
 
@@ -214,6 +229,7 @@ function viewLlaves(){
   <label>Devolución estimada (opcional)</label><input type="time" id="eta">
   <div id="om"></div><button class="btn g" onclick="run(this,'#om',coger)">Coger llave ahora</button></div>
   <div class="card"><h2 style="margin-top:0">Devolver llave</h2>
+  <label>¿Quién devuelve la llave?</label>${nameSel('dn')}
   <label>Kilómetros finales</label><input type="number" id="ke" inputmode="numeric" min="0">
   <div id="kmc" style="color:var(--m);margin-top:4px"></div>
   <label>Nivel de combustible</label><div class="seg" id="fuel">${FUEL.map(f=>`<button type="button" class="${f===S.fuel?'on':''}" onclick="setFuel('${f}')">${f}</button>`).join('')}</div>
@@ -241,28 +257,28 @@ function delPh(k,i){P[k].splice(i,1);drawPh(k)}
 async function coger(){
   const name=getName('nm'),ks=parseInt($('#ks').value),now=iso();
   if(isNaN(ks))throw new Error('Indica los kilómetros iniciales.');
-  const c=D.reservations.find(r=>r.veh===S.veh&&r.name!==name&&r.start<iso(new Date(Date.now()+36e5))&&r.end>now);
-  if(c&&!confirm(`⚠️ ${VEH[S.veh].n} está reservado por ${c.name} (${fmt(c.start)} – ${fmt(c.end)}).\n¿Cogerlo igualmente?`))return;
   const t=$('#eta').value;let eta=t?`${now.slice(0,10)}T${t}`:'';if(eta&&eta<=now)eta='';
-  await post({a:'checkout',veh:S.veh,name,kmStart:ks,eta,now});
+  await post({a:'checkout',veh:S.veh,name,kmStart:ks,eta});   /* el servidor no deja cogerlo si está reservado por otra persona */
   toast(`✅ ${VEH[S.veh].n} en uso a nombre de ${name}. ¡Buen viaje!`);await refresh();
 }
 async function devolver(){
-  const ke=parseInt($('#ke').value);if(isNaN(ke))throw new Error('Indica los kilómetros finales.');
-  const r=await post({a:'checkin',veh:S.veh,kmEnd:ke,fuel:S.fuel,notes:$('#nt').value,photos:P.ret,now:iso()});
+  const name=getName('dn'),ke=parseInt($('#ke').value),l=openLog(S.veh);
+  if(!l)throw new Error(`${VEH[S.veh].n} no está en uso: no hay nada que devolver.`);
+  if(isNaN(ke))throw new Error('Indica los kilómetros finales.');
+  if(name!==l.name&&!confirm(`La llave de ${VEH[S.veh].n} la cogió ${l.name}.\n¿La devuelves tú (${name}) en su nombre?`))return;
+  const r=await post({a:'checkin',veh:S.veh,name,kmEnd:ke,fuel:S.fuel,notes:$('#nt').value,photos:P.ret});
   toast(`✅ ${VEH[S.veh].n} devuelto. Recorridos: ${r.km} km`);await refresh();
 }
 /* ===== Repostaje: nombre, fecha, vehículo y foto del ticket ===== */
 function openFuel(){
-  P.tk=[];const prev=$('#nm')&&$('#nm').value;
+  P.tk=[];
   $('#dlg').innerHTML=`<h2 style="margin-top:0">⛽ Registrar repostaje</h2>
   <label>Vehículo</label>${vehBtns()}<label>Empleado</label>${nameSel('fn')}
   <label>Fecha y hora del repostaje</label><input type="datetime-local" id="fd" value="${iso()}" max="${iso()}">
-  <div class="row"><div><label>Importe € (opcional)</label><input id="fa" type="number" step="0.01" min="0" inputmode="decimal"></div><div><label>Litros (opcional)</label><input id="fl" type="number" step="0.01" min="0" inputmode="decimal"></div></div>
+  <div class="row"><div><label>Importe € *</label><input id="fa" type="number" step="0.01" min="0" inputmode="decimal"></div><div><label>Litros *</label><input id="fl" type="number" step="0.01" min="0" inputmode="decimal"></div></div>
   <label>Foto del ticket de la gasolinera (obligatoria)</label>${photoPicker('tk')}
   <div id="fm"></div><button class="btn g" onclick="run(this,'#fm',repostar)">Guardar repostaje</button>
   <button class="btn o" onclick="$('#dlg').close()">Cancelar</button>`;
-  if(prev&&D.names.includes(prev))$('#fn').value=prev;
   $('#dlg').showModal();
 }
 async function repostar(){
@@ -270,23 +286,25 @@ async function repostar(){
   if(!date)throw new Error('Indica la fecha del repostaje.');
   if(date>iso())throw new Error('La fecha del repostaje no puede ser futura.');
   if(!P.tk.length)throw new Error('Haz una foto del ticket de la gasolinera.');
-  await post({a:'refuel',veh:S.veh,name,date,amount:$('#fa').value,liters:$('#fl').value,photos:P.tk,now:iso()});
+  if(!(parseFloat($('#fa').value)>0))throw new Error('Indica el importe del repostaje.');
+  if(!(parseFloat($('#fl').value)>0))throw new Error('Indica los litros repostados.');
+  await post({a:'refuel',veh:S.veh,name,date,amount:$('#fa').value,liters:$('#fl').value,photos:P.tk});
   $('#dlg').close();toast(`✅ Repostaje de ${VEH[S.veh].n} guardado`);P.tk=[];
   await load();renderStatus();   /* no se redibuja la pantalla: no se pierde lo que ya estuviera escrito en «Devolver llave» */
 }
 
 /* ===== Admin (PIN verificado en el servidor) ===== */
-const daysTo=s=>Math.round((new Date(s+'T12:00')-new Date(ymd(new Date())+'T12:00'))/864e5);
+const daysTo=s=>Math.round((new Date(s+'T12:00')-new Date(ymd(NOW())+'T12:00'))/864e5);
 function revList(){
-  const rs=D.revisions.filter(r=>!r.done).sort((a,b)=>a.date.localeCompare(b.date));
+  const rs=A.revisions.filter(r=>!r.done).sort((a,b)=>a.date.localeCompare(b.date));
   if(!rs.length)return '<small>No hay revisiones pendientes. Añade la primera abajo.</small>';
   return rs.map(r=>{const d=daysTo(r.date),txt=d<0?`Vencida hace ${-d} días`:d===0?'Hoy':d===1?'Mañana':`En ${d} días`;
     return `<div class="it"><div><b>${VEH[r.veh].i} ${esc(r.type)} · ${VEH[r.veh].n}</b><small>${dm(r.date)}${r.notes?' · '+esc(r.notes):''}</small><span class="tag ${d<=1?'red':d<=15?'':'grn'}">${txt}</span></div><div class="bt"><button class="btn s ok" onclick="act({a:'doneRev',id:'${r.id}'},'✅ Revisión marcada como hecha','¿Marcar como hecha? Ya no se enviarán más avisos.')">✓ Hecha</button><button class="btn s" onclick="act({a:'delRev',id:'${r.id}'},'Revisión borrada','¿Borrar esta revisión?')">🗑</button></div></div>`}).join('');
 }
 function viewAdmin(){
   if(!PIN){$('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">🔒 Acceso de administrador</h2><label>PIN</label><input type="password" id="pin" inputmode="numeric" autocomplete="off"><div id="am"></div><button class="btn" onclick="run(this,'#am',login)">Entrar</button></div>`;return}
-  const logs=[...D.logs].sort((a,b)=>b.out.localeCompare(a.out)),open=logs.filter(l=>!l.end),t=ymd(new Date());
-  const fuels=[...D.refuels].sort((a,b)=>b.date.localeCompare(a.date));
+  const logs=[...A.logs].sort((a,b)=>b.out.localeCompare(a.out)),open=logs.filter(l=>!l.end),t=ymd(NOW());
+  const fuels=[...A.refuels].sort((a,b)=>b.date.localeCompare(a.date));
   $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coches en uso</h2>${open.length?open.map(l=>`<div class="it"><div><b>${VEH[l.veh].i} ${VEH[l.veh].n} · ${esc(l.name)}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small></div><button class="btn s" onclick="openEdit('${l.id}')">Gestionar / forzar devolución</button></div>`).join(''):'<small>Todos los coches están disponibles.</small>'}</div>
   <h2>🔧 Revisiones</h2><div class="card">${revList()}
   <div style="border-top:1px solid var(--b);margin-top:10px;padding-top:4px">
@@ -298,24 +316,24 @@ function viewAdmin(){
   <button class="btn o" onclick="run(this,'#rvm',testMail)">✉️ Enviar correo de prueba</button></div></div>
   <h2>Reservas</h2><div class="card">${resItems()}</div>
   <h2>⛽ Repostajes</h2><div class="card">${fuels.length?`<button class="btn o" style="margin:0 0 12px" onclick="exportFuel()">⬇️ Exportar repostajes a CSV / Excel</button><div class="tw"><table><tr><th>Fecha</th><th>Vehículo</th><th>Empleado</th><th>Importe</th><th>Litros</th><th>Ticket</th><th></th></tr>${fuels.map(f=>`<tr><td>${fmt(f.date)}</td><td>${VEH[f.veh].i} ${VEH[f.veh].n}</td><td>${esc(f.name)}</td><td>${f.amount!=null?f.amount+' €':''}</td><td>${f.liters??''}</td><td>${ph(f.ticket).map(u=>`<img class="th" src="${esc(u)}" onclick="window.open(this.src)">`).join(' ')}</td><td><button class="btn s" onclick="act({a:'delRefuel',id:'${f.id}'},'Repostaje borrado','¿Borrar este repostaje?')">🗑</button></td></tr>`).join('')}</table></div>`:'<small>Todavía no hay repostajes registrados.</small>'}</div>
-  <h2>Historial</h2><div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button><div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Fotos</th><th></th></tr>
-  ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${esc(l.fuel)}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${ph(l.photo).map(u=>`<img class="th" src="${esc(u)}" onclick="window.open(this.src)">`).join(' ')}</td><td><button class="btn s" style="background:var(--bg);color:var(--p)" onclick="openEdit('${l.id}')">✏️</button></td></tr>`).join('')}</table></div></div>
+  <h2>Historial</h2><div class="card"><button class="btn o" style="margin:0 0 12px" onclick="exportCSV()">⬇️ Exportar a CSV / Excel</button><div class="tw"><table><tr><th>Vehículo</th><th>Empleado</th><th>Salida</th><th>Devolución</th><th>Devuelto por</th><th>Km ini</th><th>Km fin</th><th>Km</th><th>Comb.</th><th>Incidencias</th><th>Fotos</th><th></th></tr>
+  ${logs.map(l=>`<tr><td>${VEH[l.veh].i} ${VEH[l.veh].n}</td><td>${esc(l.name)}</td><td>${fmt(l.out)}</td><td>${l.end?fmt(l.end):'<b style="color:var(--ko)">En uso</b>'}</td><td>${esc(l.by||'')}</td><td>${l.kmStart}</td><td>${l.kmEnd??''}</td><td>${l.km??''}</td><td>${esc(l.fuel)}</td><td style="white-space:normal;min-width:140px">${esc(l.notes)}</td><td>${ph(l.photo).map(u=>`<img class="th" src="${esc(u)}" onclick="window.open(this.src)">`).join(' ')}</td><td><button class="btn s" style="background:var(--bg);color:var(--p)" onclick="openEdit('${l.id}')">✏️</button></td></tr>`).join('')}</table></div></div>
   <h2>Empleados</h2><div class="card"><small style="color:var(--m)">Uno por línea. Solo estos nombres aparecen en la app.</small><textarea id="nl" rows="7">${esc(D.names.join('\n'))}</textarea><div id="nm2"></div><button class="btn" onclick="run(this,'#nm2',saveNames)">Guardar lista</button></div>
   <button class="btn o" onclick="PIN='';try{sessionStorage.removeItem('pin')}catch(e){};viewAdmin()">Cerrar sesión de administrador</button>`;
 }
-async function login(){const p=$('#pin').value.trim();if(!p)throw new Error('Escribe el PIN.');await post({a:'login',pin:p});PIN=p;try{sessionStorage.setItem('pin',p)}catch(e){}viewAdmin()}
+async function login(){const p=$('#pin').value.trim();if(!p)throw new Error('Escribe el PIN.');await post({a:'login',pin:p});PIN=p;try{sessionStorage.setItem('pin',p)}catch(e){}await load();renderStatus();viewAdmin()}
 async function saveNames(){const n=$('#nl').value.split('\n').map(s=>s.trim()).filter(s=>s&&!NOPE(s));if(!n.length)throw new Error('Añade al menos un nombre.');await admin({a:'setNames',names:n});toast('✅ Lista de empleados guardada');await refresh()}
 async function addRev(){
   const date=$('#rdt').value;if(!date)throw new Error('Indica la fecha de la revisión.');
-  if(date<ymd(new Date()))throw new Error('La fecha no puede ser pasada.');
+  if(date<ymd(NOW()))throw new Error('La fecha no puede ser pasada.');
   await admin({a:'addRev',veh:$('#rv').value,type:$('#rt').value,date,notes:$('#rn').value});
   const d=daysTo(date);toast(d<=15?'✅ Revisión añadida. Te acabamos de enviar el aviso por correo.':'✅ Revisión añadida. Te avisaremos 15 días antes y 1 día antes.');await refresh();
 }
 async function testMail(){await admin({a:'testMail'});toast(`✅ Correo de prueba enviado a ${ADMIN_MAIL}`)}
 function openEdit(id){
-  const l=D.logs.find(x=>x.id===id);if(!l)return;P.edit=[];
+  const l=A.logs.find(x=>x.id===id);if(!l)return;P.edit=[];
   $('#dlg').innerHTML=`<h2 style="margin-top:0">Editar registro</h2><small>${VEH[l.veh].n} · ${fmt(l.out)}${l.end?' → '+fmt(l.end):' · en uso'}</small>
-  <label>Empleado</label><input id="en" list="nl2" value="${esc(l.name)}"><datalist id="nl2">${D.names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+  <label>Empleado</label><select id="en">${[...new Set([l.name,...D.names])].map(n=>`<option value="${esc(n)}" ${n===l.name?'selected':''}>${esc(n)}${D.names.includes(n)?'':' (ya no está en la lista)'}</option>`).join('')}</select>
   <div class="row"><div><label>Km iniciales</label><input id="e1" type="number" value="${l.kmStart??''}"></div><div><label>Km finales</label><input id="e2" type="number" value="${l.kmEnd??''}"></div></div>
   <label>Combustible</label><select id="ef"><option value=""></option>${FUEL.map(f=>`<option ${f===l.fuel?'selected':''}>${f}</option>`).join('')}</select>
   <label>Fotos${ph(l.photo).length?' (marca "Quitar" las que salieron mal)':''}</label>${ph(l.photo).length?`<div class="pvs">${ph(l.photo).map(u=>`<label style="display:block;margin:0;font-weight:400;font-size:.75rem;text-align:center"><img class="th" style="width:84px;height:84px" src="${esc(u)}"><br><input type="checkbox" class="ph-rm" value="${esc(u)}" style="width:auto;display:inline"> Quitar</label>`).join('')}</div>`:''}<div style="margin-top:10px">${photoPicker('edit')}</div>
@@ -327,19 +345,20 @@ function openEdit(id){
   $('#dlg').showModal();
 }
 const done=async m=>{$('#dlg').close();toast(m);await refresh()};
-const saveEdit=(b,id)=>run(b,'#em',async()=>{await admin({a:'editLog',id,p:{name:$('#en').value,kmStart:$('#e1').value,kmEnd:$('#e2').value,fuel:$('#ef').value,notes:$('#et').value,photo:ph(D.logs.find(x=>x.id===id).photo).filter(u=>![...document.querySelectorAll('.ph-rm:checked')].some(c=>c.value===u)).join(' '),newPhotos:P.edit}});await done('✅ Registro actualizado')});
+const saveEdit=(b,id)=>run(b,'#em',async()=>{await admin({a:'editLog',id,p:{name:$('#en').value,kmStart:$('#e1').value,kmEnd:$('#e2').value,fuel:$('#ef').value,notes:$('#et').value,photo:ph(A.logs.find(x=>x.id===id).photo).filter(u=>![...document.querySelectorAll('.ph-rm:checked')].some(c=>c.value===u)).join(' '),newPhotos:P.edit}});await done('✅ Registro actualizado')});
 const forzar=(b,id)=>run(b,'#em',async()=>{if(!confirm('¿Marcar la llave como devuelta? Los km finales se toman del campo "Km finales" (puede quedar vacío).'))return;await admin({a:'forceReturn',id,kmEnd:$('#e2').value,now:iso()});await done('✅ Salida cerrada por el administrador')});
 const borrarLog=(b,id)=>run(b,'#em',async()=>{if(!confirm('¿Anular y borrar este registro? No se puede deshacer.'))return;await admin({a:'deleteLog',id});await done('Registro anulado')});
 function csv(file,rows){
   const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+rows.map(r=>r.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download=`${file}-${iso().slice(0,10)}.csv`;a.click();toast('✅ CSV exportado');
 }
-function exportCSV(){csv('historial-vehiculos',[['Vehículo','Empleado','Salida','Devolución','Km iniciales','Km finales','Km recorridos','Combustible','Incidencias','Fotos'],...[...D.logs].sort((a,b)=>a.out.localeCompare(b.out)).map(l=>[VEH[l.veh].n,l.name,l.out.replace('T',' '),l.end.replace('T',' '),l.kmStart,l.kmEnd,l.km,l.fuel,l.notes,l.photo])])}
-function exportFuel(){csv('repostajes-vehiculos',[['Fecha','Vehículo','Empleado','Importe (€)','Litros','Ticket'],...[...D.refuels].sort((a,b)=>a.date.localeCompare(b.date)).map(f=>[f.date.replace('T',' '),VEH[f.veh].n,f.name,f.amount!=null?String(f.amount).replace('.',','):'',f.liters!=null?String(f.liters).replace('.',','):'',f.ticket])])}
+function exportCSV(){csv('historial-vehiculos',[['Vehículo','Empleado','Salida','Devolución','Devuelto por','Km iniciales','Km finales','Km recorridos','Combustible','Incidencias','Fotos'],...[...A.logs].sort((a,b)=>a.out.localeCompare(b.out)).map(l=>[VEH[l.veh].n,l.name,l.out.replace('T',' '),l.end.replace('T',' '),l.by||'',l.kmStart,l.kmEnd,l.km,l.fuel,l.notes,l.photo])])}
+function exportFuel(){csv('repostajes-vehiculos',[['Fecha','Vehículo','Empleado','Importe (€)','Litros','Ticket'],...[...A.refuels].sort((a,b)=>a.date.localeCompare(b.date)).map(f=>[f.date.replace('T',' '),VEH[f.veh].n,f.name,f.amount!=null?String(f.amount).replace('.',','):'',f.liters!=null?String(f.liters).replace('.',','):'',f.ticket])])}
 
 /* ===== Navegación (QR: #llaves, #reservar, #admin) ===== */
 const VIEWS={reservar:viewReservar,llaves:viewLlaves,admin:viewAdmin};
 async function go(t){
+  if($('#dlg').open)$('#dlg').close();
   S.tab=VIEWS[t]?t:'llaves';S.onPick=null;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tab));
   $('#view').innerHTML='<div class="card">Cargando…</div>';
   try{await load();renderStatus();VIEWS[S.tab]()}
@@ -347,6 +366,6 @@ async function go(t){
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{location.hash===('#'+b.dataset.t)?go(b.dataset.t):location.hash=b.dataset.t});
 addEventListener('hashchange',()=>go(location.hash.slice(1)));
-setInterval(()=>{if(!document.hidden&&!S.busy&&!$('#dlg').open)load().then(renderStatus).catch(()=>{})},30000);
+setInterval(()=>{if(!document.hidden&&!S.busy&&!$('#dlg').open)load(true).then(renderStatus).catch(()=>{})},30000);
 go(location.hash.slice(1));
 </script></body></html>
