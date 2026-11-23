@@ -3,15 +3,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Llaves de vehículos</title>
 <style>
-:root{--bg:#eef1f4;--c:#fff;--t:#16212c;--m:#66737f;--b:#d9e0e6;--ok:#15803d;--okb:#dcf5e4;--ko:#c62828;--kob:#fde4e4;--p:#1d4ed8;--r:16px;--vg:#2563eb;--vd:#d97706}
-@media(prefers-color-scheme:dark){:root{--bg:#0e151c;--c:#17212b;--t:#eef2f6;--m:#92a0ad;--b:#2a3846;--ok:#4ade80;--okb:#12351f;--ko:#f87171;--kob:#431a1a;--p:#6b9bff}}
+:root{--rs:#c2410c;--rsb:#ffedd5;--bg:#eef1f4;--c:#fff;--t:#16212c;--m:#66737f;--b:#d9e0e6;--ok:#15803d;--okb:#dcf5e4;--ko:#c62828;--kob:#fde4e4;--p:#1d4ed8;--r:16px;--vg:#2563eb;--vd:#d97706}
+@media(prefers-color-scheme:dark){:root{--bg:#0e151c;--c:#17212b;--t:#eef2f6;--m:#92a0ad;--b:#2a3846;--ok:#4ade80;--okb:#12351f;--ko:#f87171;--kob:#431a1a;--p:#6b9bff;--rs:#fb923c;--rsb:#43230f}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--t);padding:env(safe-area-inset-top) 0 calc(80px + env(safe-area-inset-bottom))}
 main{max-width:640px;margin:0 auto;padding:12px}
 h1{font-size:1.3rem;margin:6px 4px 12px}h2{font-size:1.05rem;margin:18px 4px 8px}
 .card{background:var(--c);border:1px solid var(--b);border-radius:var(--r);padding:14px;margin-bottom:12px}
 .st{display:flex;gap:12px;align-items:center;border-left:8px solid;border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
-.st.ok{background:var(--okb);border-color:var(--ok)}.st.ko{background:var(--kob);border-color:var(--ko)}
+.st.ok{background:var(--okb);border-color:var(--ok)}.st.rs{background:var(--rsb);border-color:var(--rs)}.st.rs>div>b{color:var(--rs)}
+.seg button.rsv{border-color:var(--rs);background:var(--rsb);color:var(--rs)}.seg button small{display:block;font-size:.72rem;font-weight:700;margin-top:2px}
+.fu{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.85rem}.fg{display:inline-flex;gap:2px}.fg i{width:13px;height:9px;border-radius:2px;background:var(--b)}.fg i.on{background:var(--ok)}.fg.low i.on{background:var(--ko)}.fg.mid i.on{background:#d97706}.st.ko{background:var(--kob);border-color:var(--ko)}
 .st b{font-size:1.05rem}.st small{display:block;color:var(--m)}.st .ic{font-size:1.8rem}
 .tag{display:inline-block;background:#fde68a;color:#78350f;border-radius:8px;padding:2px 8px;font-size:.8rem;font-weight:700;margin-top:4px}
 .tag.red{background:var(--kob);color:var(--ko)}.tag.grn{background:var(--okb);color:var(--ok)}
@@ -119,21 +121,42 @@ async function run(btn,mid,fn){
 /* Acción rápida de administrador (con confirmación opcional) */
 async function act(q,ok,conf){if(S.busy||(conf&&!confirm(conf)))return;S.busy=true;try{await admin(q);toast(ok);await refresh()}catch(e){toast('⚠️ '+e.message)}finally{S.busy=false}}
 async function refresh(){await load();renderStatus();VIEWS[S.tab]()}
-const vehBtns=()=>`<div class="seg">${Object.entries(VEH).map(([k,v])=>`<button type="button" data-v="${k}" class="${S.veh===k?'on':''}" onclick="pick('${k}')">${v.i} ${v.n}</button>`).join('')}</div>`;
-function pick(v){S.veh=v;document.querySelectorAll('.seg button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(S.onPick)S.onPick()}
+/* Reserva activa ahora mismo para un vehículo */
+const curRes=v=>{const now=iso();return D.reservations.find(r=>r.veh===v&&r.start<=now&&r.end>now)};
+const fdt=s=>`${dm(s.slice(0,10))} ${s.slice(11)}`;
+/* Al coger llave: bloqueado si está reservado ahora por otra persona (el de la reserva sí puede elegirlo) */
+const blockFor=v=>{const c=curRes(v);if(!c||openLog(v))return null;const n=$('#nm')&&$('#nm').value;return n===c.name?null:c};
+const resMsg=(v,c)=>`⚠️ ${VEH[v].n} está reservado por ${esc(c.name)} (${fdt(c.start)} – ${fdt(c.end)}). Coge el otro vehículo, o pide que cancelen esa reserva.`;
+const vehBtns=lock=>`<div class="seg">${Object.entries(VEH).map(([k,v])=>{const c=lock&&blockFor(k);return `<button type="button" data-v="${k}" class="${S.veh===k&&!c?'on':''} ${c?'rsv':''}" onclick="pick('${k}'${lock?',1':''})">${v.i} ${v.n}${c?'<small>🟠 Reservado</small>':''}</button>`}).join('')}</div>`;
+function lockVeh(){if($('#vsel'))$('#vsel').innerHTML=vehBtns(1)}
+function pick(v,lock){
+  if(lock){const c=blockFor(v);if(c){msg('#om',resMsg(v,c));return}if($('#om'))$('#om').innerHTML=''}
+  S.veh=v;document.querySelectorAll('.seg button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));if(S.onPick)S.onPick()}
 /* Desplegable de empleado: "¿Quién eres?" es solo un texto de ejemplo, nunca se puede elegir */
 const nameSel=(id='nm')=>`<select id="${id}" required><option value="" disabled selected>${PLACEHOLDER}</option>${D.names.filter(n=>!NOPE(n)).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select>`;
 const getName=id=>{const n=$('#'+id).value;if(!n||NOPE(n)||!D.names.includes(n)){$('#'+id).focus();throw new Error('Elige tu nombre de la lista (no puede quedar «¿Quién eres?»).')}return n};
 const openLog=v=>D.logs.find(l=>l.veh===v&&!l.end);
 
+/* Nivel de combustible con el que se devolvió por última vez */
+const lastRet=v=>D.logs.filter(l=>l.veh===v&&l.end).sort((a,b)=>b.end.localeCompare(a.end))[0];
+function fuelHTML(v,inUse){
+  const l=lastRet(v),i=l?FUEL.indexOf(l.fuel):-1;
+  if(i<0)return '<div class="fu">⛽ Combustible: sin datos todavía</div>';
+  const g=`<span class="fg ${i<=1?'low':i===2?'mid':''}">${FUEL.map((f,j)=>`<i class="${j<=i?'on':''}"></i>`).join('')}</span>`;
+  const tip=inUse?'':i<=1?'<span class="tag red">⛽ Hay que repostar: coge la tarjeta o dinero</span>':i>=3?'<span class="tag grn">✅ Depósito bien, no hace falta repostar</span>':'';
+  return `<div class="fu">${g}<span>${inUse?'Salió con':'Combustible:'} <b>${l.fuel==='Reserva'?'en reserva':l.fuel}</b></span></div>${tip}`;
+}
 function renderStatus(){
   const now=iso();
   $('#status').innerHTML=Object.entries(VEH).map(([k,v])=>{
     const l=openLog(k);
     if(l){const late=(l.eta&&l.eta<now)||NOW()-new Date(l.out)>12*36e5;
-      return `<div class="st ko"><span class="ic">🔴</span><div><b>${v.n}: En uso por ${esc(l.name)}${l.eta?` hasta las ${hm(l.eta)}`:''}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small>${late?'<span class="tag">⏰ Pendiente de devolver</span>':''}</div></div>`}
+      return `<div class="st ko"><span class="ic">🔴</span><div><b>${v.n}: En uso por ${esc(l.name)}${l.eta?` hasta las ${hm(l.eta)}`:''}</b><small>Desde ${fmt(l.out)} · ${l.kmStart} km</small>${fuelHTML(k,1)}${late?'<span class="tag">⏰ Pendiente de devolver</span>':''}</div></div>`}
+    const c=curRes(k);
+    if(c)return `<div class="st rs"><span class="ic">🟠</span><div><b>${v.n}: Reservado por ${esc(c.name)}</b><small>Ahora, hasta ${c.end.slice(0,10)===now.slice(0,10)?'las '+c.end.slice(11):fmt(c.end)} · solo puede cogerlo ${esc(c.name)}</small>${fuelHTML(k)}</div></div>`;
     const nx=D.reservations.filter(r=>r.veh===k&&r.end>now).sort((a,b)=>a.start.localeCompare(b.start))[0];
-    return `<div class="st ok"><span class="ic">🟢</span><div><b>${v.n}: Disponible</b><small>${nx?`Próxima reserva: ${esc(nx.name)}, ${fmt(nx.start)}`:'Sin reservas próximas'}</small></div></div>`}).join('');
+    return `<div class="st ok"><span class="ic">🟢</span><div><b>${v.n}: Disponible</b><small>${nx?`Próxima reserva: ${esc(nx.name)}, ${fmt(nx.start)}`:'Sin reservas próximas'}</small>${fuelHTML(k)}</div></div>`}).join('');
+  lockVeh();
 }
 const resItems=()=>{const now=iso(),res=D.reservations.filter(r=>r.end>=now).sort((a,b)=>a.start.localeCompare(b.start));
   return res.length?res.map(r=>`<div class="it"><div><b>${VEH[r.veh].i} ${VEH[r.veh].n} · ${esc(r.name)}</b><small>${fmt(r.start)} → ${fmt(r.end)}</small></div><button class="btn s" onclick="act({a:'cancelRes',id:'${r.id}'},'Reserva cancelada','¿Cancelar esta reserva?')">Cancelar</button></div>`).join(''):'<small>No hay reservas.</small>'};
@@ -223,8 +246,9 @@ async function reservar(){
 /* ===== Llaves ===== */
 function viewLlaves(){
   S.fuel='1/2';P.ret=[];S.onPick=()=>{prefill();prefillIn()};
+  if(blockFor(S.veh)){const o=Object.keys(VEH).find(k=>!blockFor(k));if(o)S.veh=o}   /* si el elegido está reservado, se pasa al otro */
   $('#view').innerHTML=`<div class="card"><h2 style="margin-top:0">Coger llave</h2>
-  <label>Vehículo</label>${vehBtns()}<label>Empleado</label>${nameSel()}
+  <label>Vehículo</label><div id="vsel">${vehBtns(1)}</div><label>Empleado</label>${nameSel()}
   <label>Kilómetros iniciales</label><input type="number" id="ks" inputmode="numeric" min="0">
   <label>Devolución estimada (opcional)</label><input type="time" id="eta">
   <div id="om"></div><button class="btn g" onclick="run(this,'#om',coger)">Coger llave ahora</button></div>
@@ -237,6 +261,7 @@ function viewLlaves(){
   <label>Incidencias (opcional)</label><textarea id="nt" rows="2" placeholder="Golpe, aviso en el cuadro, limpieza…"></textarea>
   <label>Fotos de desperfectos (opcional, hasta ${MAX.ret})</label>${photoPicker('ret')}
   <div id="im"></div><button class="btn r" onclick="run(this,'#im',devolver)">Devolver llave ahora</button></div>`;
+  $('#nm').addEventListener('change',()=>{lockVeh();if($('#om'))$('#om').innerHTML=''});
   prefill();prefillIn();
 }
 function prefill(){const l=D.logs.filter(l=>l.veh===S.veh&&l.kmEnd!=null).sort((a,b)=>b.end.localeCompare(a.end))[0];if($('#ks'))$('#ks').value=l?l.kmEnd:''}
@@ -257,6 +282,7 @@ function delPh(k,i){P[k].splice(i,1);drawPh(k)}
 async function coger(){
   const name=getName('nm'),ks=parseInt($('#ks').value),now=iso();
   if(isNaN(ks))throw new Error('Indica los kilómetros iniciales.');
+  const rc=blockFor(S.veh);if(rc)throw new Error(resMsg(S.veh,rc).slice(3));
   const t=$('#eta').value;let eta=t?`${now.slice(0,10)}T${t}`:'';if(eta&&eta<=now)eta='';
   await post({a:'checkout',veh:S.veh,name,kmStart:ks,eta});   /* el servidor no deja cogerlo si está reservado por otra persona */
   toast(`✅ ${VEH[S.veh].n} en uso a nombre de ${name}. ¡Buen viaje!`);await refresh();
